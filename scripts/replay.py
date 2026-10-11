@@ -34,9 +34,10 @@ RESULTS = ROOT / "data" / "replay_results.json"
 def run_under(policy_doc: dict | None, tickets: list) -> dict:
     """One pass over the tickets. After each poisoned ticket a server is provisioned."""
     reset()
-    db.col("tickets").insert_many([dict(t) for t in tickets])
+    db.col("tickets").insert_many([{**t, "received_at": db.now()} for t in tickets])
     if policy_doc:
-        db.col("policies").insert_one(policy_doc)
+        # caused_by and the rationale name ids from the main database, so say so.
+        db.col("policies").insert_one({**policy_doc, "copied_from": MAIN_DB})
         db.col("policies").update_one({"_id": "policy_v0"}, {"$set": {"status": "superseded"}})
     version = policy_doc["version"] if policy_doc else 0
     out = {"policy_version": version, "tickets": len(tickets), "poisoned_tickets": 0, "poisoned_reached_server": 0,

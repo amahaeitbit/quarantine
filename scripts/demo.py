@@ -25,7 +25,8 @@ def say(step: int, running: bool = True, error: str | None = None) -> None:
     STATE.parent.mkdir(exist_ok=True)
     STATE.write_text(json.dumps({"running": running, "step": step, "total": len(STEPS), "label": STEPS[step - 1],
                                  "updated_at": time.time(), "error": error}))
-    print(f"[{step}/{len(STEPS)}] {STEPS[step - 1]}" + (f" FAILED: {error}" if error else ""), flush=True)
+    if running or error:
+        print(f"[{step}/{len(STEPS)}] {STEPS[step - 1]}" + (f" FAILED: {error}" if error else ""), flush=True)
 
 
 def wait_for(find, what: str, seconds: float = 45):
@@ -79,6 +80,7 @@ def main(pause: float) -> None:
             if not server or server.get("health") != "pass":
                 raise RuntimeError("web-08 did not pass its health check")
         say(len(STEPS), running=False)
+        print("Demo finished: policy v1 written by the Evolver, ticket 4131 held, web-08 healthy.", flush=True)
     except BaseException as exc:  # includes Ctrl-C, so the console never shows a demo that is no longer running
         say(step, running=False, error=f"{type(exc).__name__}: {exc}"[:200])
         if isinstance(exc, Exception):

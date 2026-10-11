@@ -4,7 +4,7 @@ Telemetry must never break the harness, so failures are swallowed after one warn
 """
 import sys
 
-from quarantine import config
+from quarantine import config, db
 
 _ready = False
 _warned = False
@@ -25,6 +25,14 @@ def _enabled() -> bool:
     return True
 
 
+def _event_id(run_id: str) -> str:
+    """Raindrop event id for a run. Run ids restart after every reset, so the run's start time
+    is appended: each demo run then has its own trace instead of overwriting the last one."""
+    run = db.col("runs").find_one({"_id": run_id}, {"started_at": 1}) or {}
+    stamp = run.get("started_at", "")[:19].translate(str.maketrans("", "", "-:"))
+    return f"{run_id}-{stamp}" if stamp else run_id
+
+
 def _guard(fn):
     def wrapped(*args, **kwargs):
         global _warned
@@ -41,14 +49,14 @@ def _guard(fn):
 @_guard
 def begin(run_id: str, prompt: str, policy_version: int) -> None:
     import raindrop.analytics as raindrop
-    _open[run_id] = raindrop.begin(user_id="it-ops-worker", event="worker_run", event_id=run_id,
-                                   input=prompt, properties={"policy_version": policy_version})
+    _open[run_id] = raindrop.begin(user_id="it-ops-worker", event="worker_run", event_id=_event_id(run_id),
+                                   input=prompt, properties={"policy_version": policy_version, "run_id": run_id})
 
 
 @_guard
 def finish(run_id: str, summary: str) -> None:
     import raindrop.analytics as raindrop
-    interaction = _open.pop(run_id, None) or raindrop.resume_interaction(event_id=run_id)
+    interaction = _open.pop(run_id, None) or raindrop.resume_interaction(event_id=_event_id(run_id))
     interaction.finish(output=summary)
     raindrop.flush()
 
@@ -57,7 +65,7 @@ def finish(run_id: str, summary: str) -> None:
 def tool_call(run_id: str, tool: str, safe_args: dict, decision: str, ms: float,
               policy_version: int, tainted: bool) -> None:
     import raindrop.analytics as raindrop
-    raindrop.resume_interaction(event_id=run_id).track_tool(
+    raindrop.resume_interaction(event_id=_event_id(run_id)).track_tool(
         name=tool, input=safe_args, output={"decision": decision}, duration_ms=ms,
         properties={"policy_version": policy_version, "tainted": tainted})
 
@@ -65,5 +73,5 @@ def tool_call(run_id: str, tool: str, safe_args: dict, decision: str, ms: float,
 @_guard
 def signal(run_id: str, name: str, negative: bool = False) -> None:
     import raindrop.analytics as raindrop
-    raindrop.track_signal(event_id=run_id, name=name, sentiment="NEGATIVE" if negative else None)
+    raindrop.track_signal(event_id=_event_id(run_id), name=name, sentiment="NEGATIVE" if negative else None)
     raindrop.flush()
