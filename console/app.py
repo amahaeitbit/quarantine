@@ -128,7 +128,10 @@ def demo_banner() -> None:
 @st.fragment(run_every="2s")
 def page() -> None:
     try:
-        snap = views.snapshot()
+        token = views.change_token()
+        if token != st.session_state.get("token") or "snap" not in st.session_state:
+            st.session_state["snap"], st.session_state["token"] = views.snapshot(), token
+        snap = st.session_state["snap"]
     except Exception:  # the database is briefly empty in the middle of a reset
         st.caption("Waiting for the database…")
         return

@@ -95,7 +95,7 @@ def watch() -> None:
     match = {"$match": {"operationType": {"$in": ["insert", "update", "replace"]},
                         "fullDocument.status": "quarantined"}}
     with ThreadPoolExecutor(max_workers=4) as pool, \
-            db.col("memory_ledger").watch([match], full_document="updateLookup") as stream:
+            db.col("memory_ledger").watch([match], full_document="updateLookup", max_await_time_ms=10000) as stream:
         print("guardian: watching memory_ledger", flush=True)
         for waiting in db.col("memory_ledger").find({"status": "quarantined"}, {"_id": 1}):
             pool.submit(_review_once, waiting["_id"])

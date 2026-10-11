@@ -8,6 +8,13 @@ from style import badge, chip, decision, heading, meter_row, tile
 REPLAY = config.ROOT / "data" / "replay_results.json"
 
 
+def change_token() -> tuple:
+    """Cheap fingerprint of the database: every change the console shows writes an event,
+    and a reset empties them. One indexed query instead of a full snapshot while idle."""
+    latest = db.col("events").find_one({}, {"_id": 1, "ts": 1}, sort=[("_id", -1)]) or {}
+    return latest.get("_id"), latest.get("ts"), REPLAY.stat().st_mtime if REPLAY.exists() else None
+
+
 def snapshot() -> dict:
     d = db.db()
     policies = list(d.policies.find().sort("version", -1))

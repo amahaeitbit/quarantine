@@ -163,7 +163,7 @@ def _handle_safely(event: dict) -> None:
 def watch() -> None:
     failed = {"kind": "health_check", "outcome": "fail"}
     match = {"$match": {"operationType": "insert", **{f"fullDocument.{k}": v for k, v in failed.items()}}}
-    with db.col("events").watch([match]) as stream:
+    with db.col("events").watch([match], max_await_time_ms=10000) as stream:  # fewer idle round trips
         print(f"evolver: watching events (enabled={config.EVOLVER_ENABLED})", flush=True)
         for waiting in db.col("events").find(failed).sort("_id", 1):
             _handle_safely(waiting)

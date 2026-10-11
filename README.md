@@ -259,6 +259,25 @@ note is true, and a held note stays held until a person releases it.
 - `fixtures/policy_v1.json` is a test fixture (author `fixture`). It is never presented
   as Evolver output.
 
+## How the cluster is used
+
+All data lives in the Atlas sandbox cluster: the demo in `DB_NAME`, the replay in
+`REPLAY_DB_NAME`. The harness uses Atlas for more than storage:
+
+- **Change streams.** The Guardian watches `memory_ledger` and the Evolver watches
+  `events`, so a held write is reviewed and a failed check answered within seconds, with
+  no polling loop of their own. Idle streams wait up to 10 s on the server per round trip.
+- **Vector search.** An autoEmbed index ranks memories for recall and the Guardian
+  (see below).
+- **Atomic updates.** A run's tool list and taint flag change in one
+  `findOneAndUpdate`; relabelling after a policy change is one `updateMany`.
+- **Indexes that match the queries.** `db.ensure_indexes` creates one index per hot
+  query (policy lookup, recall order, verdict and policy-change lookups, runs by tool),
+  so none of them scans a collection or sorts in memory; `scripts/reset.py` keeps them.
+- **The console reads only when something changed.** Every change the console shows
+  writes an event, so each 2-second refresh runs one indexed query and reloads the full
+  snapshot only when the newest event differs.
+
 ## Vector search
 
 `recall` and the Guardian can rank memories with Atlas Vector Search over an autoEmbed

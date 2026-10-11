@@ -153,6 +153,35 @@ where `update_dns_record` would be a Route 53 ChangeResourceRecordSets. The repl
 covers the first incident only. The Atlas Agent Engine memory mirror, milestone 7, is
 not built; memory lives in the ledger collection.
 
+## Showing the Atlas and Raindrop side
+
+Keep two more browser tabs open and switch to them twice during the talk.
+
+**MongoDB Atlas** (cloud.mongodb.com, the hackathon organization, your Sandbox Project,
+Cluster0):
+
+- Data Explorer: the `quarantine` database. After stage 4, open `policies` and show
+  `policy_v1` written by `evolver-agent` with its `caused_by` event id and rationale; after
+  stage 9, `policy_v2`. Open `events` and show `decision: "hold"` and `"deny"` rows, and
+  `memory_ledger` for `status: "quarantined"`. Say: every decision the gateway makes is a
+  document here; the console is only a view of this database.
+- Search & Vector Search: the `memory_text_index` autoEmbed index on `memory_ledger`
+  (`voyage-4`, filters on `status` and `trust`). Say: recall and the Guardian rank memories
+  with `$vectorSearch`; the policy filter is applied again to the live documents.
+- Say, without a tab: the Guardian and the Evolver react through change streams on
+  `memory_ledger` and `events`, which is why the policy appears within seconds of the
+  failed check; the replay lives in `quarantine_replay` on the same cluster.
+- Metrics (optional): the cluster's operation counters during the demo.
+
+**Raindrop** (app.raindrop.ai, project Production, Events):
+
+- After the demo, open the newest `worker_run` events. Each demo run is its own trace
+  (the event id carries the run's start time). Open the web-07 run: the tool spans
+  `recall`, `recall`, `provision_server` with their decisions, and the signal "Health
+  check failed". Open the ticket 4131 run: "Write held" and "Guardian conflict".
+- Say: tracing is one env flag; the harness sends one span per gateway decision and a
+  signal for every failure, hold, deny and conflict.
+
 > **If something goes wrong.** The banner at the top shows "The demo stopped at step N"
 > and the error. Press **Reset to policy v0** in the sidebar, wait for the tiles to clear,
 > then press **Run the full demo** again; it resets once more and replaces the banner.

@@ -51,7 +51,7 @@ def wait_for(find, what: str, seconds: float = 45):
         found = find()
         if found:
             return found
-        time.sleep(0.3)
+        time.sleep(0.5)
     raise RuntimeError(f"timed out waiting for {what}")
 
 

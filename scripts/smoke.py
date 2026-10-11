@@ -52,7 +52,7 @@ def wait_for(find, what: str, seconds: float = 30):
         found = find()
         if found:
             return found
-        time.sleep(0.3)
+        time.sleep(0.5)
     raise AssertionError(f"timed out after {seconds:g}s waiting for {what}")
 
 
