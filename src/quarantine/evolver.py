@@ -90,16 +90,29 @@ def apply_policy(current: dict, proposal: dict, event: dict) -> dict:
            "direction": "tighten" if tighter else "not-tighter",
            "status": "active" if tighter else "proposed",
            **{k: proposal[k] for k in AUTHORED}, "created_at": db.now()}
-    db.col("policies").insert_one(doc)
     relabeled = 0
     if tighter:
-        db.col("policies").update_one({"_id": current["_id"]}, {"$set": {"status": "superseded"}})
+        # Quarantine first, publish second: once the new version is visible, the ledger already
+        # matches it. If this process stops half-way, the next start simply handles the event again.
         relabeled = _relabel(set(proposal["taint_sources"]) - set(current.get("taint_sources", [])))
+    db.col("policies").insert_one(doc)
+    if tighter:
+        db.col("policies").update_many({"status": "active", "version": {"$lt": version}},
+                                       {"$set": {"status": "superseded"}})
     db.insert_next("events", "evt", {
         "ts": db.now(), "run_id": event["run_id"], "kind": "policy_change", "tool": None,
         "decision": None, "policy_version": version, "outcome": None, "caused_by": [event["_id"]],
         "detail": {"policy_id": doc["_id"], "status": doc["status"], "relabeled_memories": relabeled}})
     return doc
+
+
+def _stale(event: dict, current: dict) -> bool:
+    """True when the database was reset or the policy moved on while the model was thinking.
+    Ids restart after a reset, so the event is matched on its timestamp as well."""
+    if not db.col("events").find_one({"_id": event["_id"], "ts": event["ts"]}):
+        return True
+    active = db.col("policies").find_one({"status": "active"}, sort=[("version", -1)])
+    return active is None or active["_id"] != current["_id"]
 
 
 def handle(event: dict) -> dict | None:
@@ -109,6 +122,9 @@ def handle(event: dict) -> dict | None:
     current = policy.load_active_policy()
     proposal = propose_policy(build_incident_summary(event), current)
     if proposal is None:
+        return None
+    if _stale(event, current):
+        print(f"evolver: dropped a stale proposal for {event['_id']}", flush=True)
         return None
     doc = apply_policy(current, proposal, event)
     print(f"evolver: {event['_id']} -> {doc['_id']} ({doc['status']})", flush=True)

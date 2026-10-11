@@ -83,9 +83,9 @@ def connect() -> None:
 
 
 def act1() -> None:
+    with timed("reset.py", target=10):
+        reset()
     with stack.running(config.GATEWAY_URL):
-        with timed("reset.py", target=10):
-            reset()
         triage = session("Triage ticket_4127.")
         session(PROVISION.format("web-07"))
         server = db.col("servers").find_one({"_id": "web-07"})
@@ -97,7 +97,10 @@ def act1() -> None:
         if not config.EVOLVER_ENABLED:
             print("  EVOLVER_ENABLED=0: skipping the policy checks")
             return
-        v1 = wait_for(lambda: db.col("policies").find_one({"version": 1}), "policy v1 from the Evolver")
+        # The policy_change event is the Evolver's last write, so everything else is in place by then.
+        change = wait_for(lambda: db.col("events").find_one({"kind": "policy_change", "caused_by": failed["_id"]}),
+                          "a policy change from the Evolver")
+        v1 = db.col("policies").find_one({"_id": change["detail"]["policy_id"]})
         report("Evolver publishes v1 after the failed health check", between(failed["ts"], v1["created_at"]), 10)
         print(f"  policy_v1: {json.dumps({k: v1[k] for k in ('taint_sources', 'tool_rules', 'context_policy')})}")
         print(f"  rationale: {v1['rationale']}")
@@ -124,9 +127,11 @@ def act3(fixture: bool = False) -> None:
         held = list(db.col("memory_ledger").find({"source.run_id": triage["run_id"]}))
         assert held, "the ticket 4131 run wrote nothing to the ledger"
         assert all(m["status"] == "quarantined" for m in held), "a ticket 4131 write was not held"
-        flagged = wait_for(lambda: db.col("memory_ledger").find_one(
-            {"source.run_id": triage["run_id"], "conflicts_with.0": {"$exists": True}}), "a Guardian conflict")
-        verdict = db.col("events").find_one({"kind": "verdict", "detail.memory_id": flagged["_id"]})
+        verdict = wait_for(lambda: db.col("events").find_one(
+            {"kind": "verdict", "detail.conflict": True,
+             "detail.memory_id": {"$in": [m["_id"] for m in held]}}), "a Guardian conflict")
+        flagged = db.col("memory_ledger").find_one({"_id": verdict["detail"]["memory_id"]})
+        assert flagged["conflicts_with"], "the conflict was not written to the ledger entry"
         report("Guardian verdict after the held write", between(flagged["created_at"], verdict["ts"]), 5)
         print(f"  {flagged['_id']} quarantined, conflicts with {flagged['conflicts_with'][0]['memory_id']}: "
               f"{flagged['conflicts_with'][0]['reason']}")

@@ -54,11 +54,13 @@ def review_held_write(mem_id: str) -> dict:
     conflicts = ([{"memory_id": verdict["conflicting_memory_id"], "reason": verdict["reason"]}]
                  if verdict["conflict"] else [])
     run_id = entry["source"].get("run_id")
+    # Ledger first, verdict event last: the event is what marks the review as finished,
+    # so a watcher stopped half-way simply reviews the entry again on its next start.
+    ledger.update_one({"_id": mem_id}, {"$set": {"conflicts_with": conflicts}})
     db.insert_next("events", "evt", {
         "ts": db.now(), "run_id": run_id, "kind": "verdict", "tool": "remember", "decision": None,
         "policy_version": policy.load_active_policy()["version"], "outcome": None,
         "detail": {"memory_id": mem_id, **verdict}})
-    ledger.update_one({"_id": mem_id}, {"$set": {"conflicts_with": conflicts}})
     if verdict["conflict"] and run_id:
         telemetry.signal(run_id, "guardian_conflict", negative=True)
     return verdict

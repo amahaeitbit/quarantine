@@ -30,6 +30,10 @@ Values you must set in `.env`:
 | `LLM_WORKSPACE_ID` | Only if the key is not scoped to a workspace (`wrkspc_...`). |
 | `RAINDROP_WRITE_KEY` | Only when `RAINDROP_ENABLED=1`. |
 
+With `RAINDROP_ENABLED=1`, each worker run is sent to Raindrop with one span per tool call
+and the signals `health_check_failed`, `write_held`, `call_denied` and `guardian_conflict`.
+Run ids restart after a reset, so a later run with the same id updates the earlier one there.
+
 The model is pinned by `LLM_MODEL` (default `claude-haiku-4-5`) and runs at
 `LLM_TEMPERATURE=0`. Newer Claude models reject temperature 0; to use one, clear
 `LLM_TEMPERATURE` and set `LLM_EFFORT=low`.
@@ -102,8 +106,20 @@ on a clean reset, without the Evolver.
 - `fixtures/policy_v1.json` is a test fixture (author `fixture`). It is never presented
   as Evolver output.
 
+## Vector search
+
+`recall` and the Guardian can rank memories with Atlas Vector Search over an autoEmbed
+index on `memory_ledger.text` (`voyage-4`, with `status` and `trust` as filter fields).
+
+```bash
+.venv/bin/python scripts/seed.py --vector-index   # create it, or print its status
+```
+
+Set `USE_VECTOR_SEARCH=1` once it reports `READY`. The index trails writes by about a
+second, so it only ranks: the policy filter is applied again to the live documents before
+anything is returned. With `USE_VECTOR_SEARCH=0`, recall reads the ledger directly. The
+replay always uses the ledger, because the index exists only in the main database.
+
 ## Not built
 
 - Milestone 7, the Atlas Agent Engine memory mirror. `MEMORY_BACKEND` must stay `ledger`.
-- Vector search is optional and off by default. `python scripts/seed.py --vector-index`
-  creates the autoEmbed index; set `USE_VECTOR_SEARCH=1` once it reports `READY`.

@@ -20,7 +20,8 @@ MAIN_DB = _env.get("DB_NAME") or "quarantine"
 REPLAY_DB = _env.get("REPLAY_DB_NAME") or "quarantine_replay"
 REPLAY_GATEWAY = "http://localhost:8001/mcp"
 # Set before quarantine.config is imported, so this process and its gateway use the replay database.
-os.environ.update(DB_NAME=REPLAY_DB, GATEWAY_URL=REPLAY_GATEWAY, EVOLVER_ENABLED="0")
+# The vector index exists only in the main database, so the replay recalls from the plain ledger.
+os.environ.update(DB_NAME=REPLAY_DB, GATEWAY_URL=REPLAY_GATEWAY, EVOLVER_ENABLED="0", USE_VECTOR_SEARCH="0")
 
 import stack  # noqa: E402
 from quarantine import db, worker  # noqa: E402

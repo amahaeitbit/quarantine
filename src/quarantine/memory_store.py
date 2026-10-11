@@ -24,10 +24,12 @@ def write(run_id: str, label: str, text: str, held: bool) -> str:
 def _search(query: str, flt: dict, limit: int) -> list:
     ledger = db.col("memory_ledger")
     if config.USE_VECTOR_SEARCH:
-        vector_filter = {k: v for k, v in flt.items() if k in ("status", "trust")}
-        return list(ledger.aggregate([{"$vectorSearch": {
-            "index": VECTOR_INDEX, "path": "text", "query": query, "filter": vector_filter,
-            "numCandidates": 50, "limit": limit}}]))
+        # The index lags writes by about a second, so it only ranks. The $match on the live
+        # documents is what enforces the policy filter.
+        return list(ledger.aggregate([
+            {"$vectorSearch": {"index": VECTOR_INDEX, "path": "text", "query": query, "filter": flt,
+                               "numCandidates": 50, "limit": limit}},
+            {"$match": flt}]))
     return list(ledger.find(flt).sort([("created_at", -1), ("_id", -1)]).limit(limit))
 
 
