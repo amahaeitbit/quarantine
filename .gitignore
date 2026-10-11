@@ -8,3 +8,6 @@ __pycache__/
 .DS_Store
 logs/
 data/replay_results.json
+.env.*
+!.env.example
+*.swp

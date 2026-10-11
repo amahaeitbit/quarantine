@@ -17,7 +17,10 @@ def _enabled() -> bool:
         return False
     if not _ready:
         import raindrop.analytics as raindrop
-        raindrop.init(config.RAINDROP_WRITE_KEY, tracing_enabled=True, bypass_otel_for_tools=True)
+        # auto_instrument=False: automatic SDK patching costs about 9 seconds per process,
+        # and every span we need is sent explicitly below.
+        raindrop.init(config.RAINDROP_WRITE_KEY, tracing_enabled=True, bypass_otel_for_tools=True,
+                      auto_instrument=False)
         _ready = True
     return True
 

@@ -4,6 +4,8 @@ Run the watcher:  python -m quarantine.guardian   (with src on PYTHONPATH)
 """
 import json
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 from quarantine import db, llm, memory_store, policy, telemetry
 
@@ -62,23 +64,39 @@ def review_held_write(mem_id: str) -> dict:
     return verdict
 
 
+_in_flight, _lock = set(), threading.Lock()
+
+
 def _review_once(mem_id: str) -> None:
-    if db.col("events").find_one({"kind": "verdict", "detail.memory_id": mem_id}):
-        return  # already reviewed (this also absorbs the echo of our own update)
-    verdict = review_held_write(mem_id)
-    print(f"guardian: {mem_id} conflict={verdict['conflict']} with={verdict['conflicting_memory_id']}", flush=True)
+    with _lock:
+        if mem_id in _in_flight:
+            return
+        _in_flight.add(mem_id)
+    try:
+        if db.col("events").find_one({"kind": "verdict", "detail.memory_id": mem_id}):
+            return  # already reviewed (this also absorbs the echo of our own update)
+        verdict = review_held_write(mem_id)
+        print(f"guardian: {mem_id} conflict={verdict['conflict']} with={verdict['conflicting_memory_id']}", flush=True)
+    except Exception as exc:
+        print(f"guardian: review of {mem_id} failed: {type(exc).__name__}", file=sys.stderr, flush=True)
+    finally:
+        with _lock:
+            _in_flight.discard(mem_id)
 
 
 def watch() -> None:
-    """Review every entry that becomes quarantined, including ones already waiting at startup."""
+    """Review every entry that becomes quarantined, including ones already waiting at startup.
+
+    Reviews run in parallel so two writes held from one ticket do not wait on each other."""
     match = {"$match": {"operationType": {"$in": ["insert", "update", "replace"]},
                         "fullDocument.status": "quarantined"}}
-    with db.col("memory_ledger").watch([match], full_document="updateLookup") as stream:
+    with ThreadPoolExecutor(max_workers=4) as pool, \
+            db.col("memory_ledger").watch([match], full_document="updateLookup") as stream:
         print("guardian: watching memory_ledger", flush=True)
         for waiting in db.col("memory_ledger").find({"status": "quarantined"}, {"_id": 1}):
-            _review_once(waiting["_id"])
+            pool.submit(_review_once, waiting["_id"])
         for change in stream:
-            _review_once(change["documentKey"]["_id"])
+            pool.submit(_review_once, change["documentKey"]["_id"])
 
 
 if __name__ == "__main__":

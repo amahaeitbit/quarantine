@@ -19,6 +19,8 @@ _client = None
 def _check_uri(uri: str) -> None:
     if not uri:
         raise RuntimeError("MONGODB_URI is not set. Put the sandbox cluster URI in .env.")
+    if "<db_password>" in uri or "<password>" in uri:
+        raise RuntimeError("MONGODB_URI still contains the <db_password> placeholder. Replace it with the password.")
     hosts = urlparse(uri).netloc.rsplit("@", 1)[-1]
     for host in hosts.split(","):
         if host.split(":")[0].lower() in _LOCAL_HOSTS:
