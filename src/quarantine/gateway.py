@@ -49,14 +49,17 @@ def recall(run_id: str, query: str) -> str:
 
 
 @mcp.tool()
-def provision_server(run_id: str, hostname: str, dns_resolvers: list[str], ntp_servers: list[str]) -> str:
-    """Provision a server with the given DNS resolvers and NTP servers."""
-    args = {"hostname": hostname, "dns_resolvers": dns_resolvers, "ntp_servers": ntp_servers}
-    if policy.enforce("provision_server", run_id, args) != "allow":
+def provision_server(run_id: str, hostname: str, dns_resolvers: list[str], ntp_servers: list[str],
+                     dns_transport: str = "dot", dns_endpoint: str = "dns.corp.example",
+                     dnssec_validation: bool = True) -> str:
+    """Provision a server with the given DNS resolvers and NTP servers. The DNS transport (plain, dot, doh
+    or doq), the encrypted resolver endpoint and DNSSEC validation default to the corporate settings."""
+    settings = {"dns_resolvers": dns_resolvers, "ntp_servers": ntp_servers, "dns_transport": dns_transport,
+                "dns_endpoint": dns_endpoint, "dnssec_validation": dnssec_validation}
+    if policy.enforce("provision_server", run_id, {"hostname": hostname, **settings}) != "allow":
         return DENIED
     db.col("servers").replace_one({"_id": hostname}, {
-        "_id": hostname, "dns_resolvers": dns_resolvers, "ntp_servers": ntp_servers,
-        "provisioned_by_run": run_id, "health": None}, upsert=True)
+        "_id": hostname, **settings, "provisioned_by_run": run_id, "health": None}, upsert=True)
     health.check_server(hostname, run_id)  # the monitor is external: the worker is not told the result
     return f"Provisioned {hostname}."
 

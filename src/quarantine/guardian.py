@@ -65,6 +65,12 @@ def review_held_write(mem_id: str) -> dict:
         "detail": {"memory_id": mem_id, **verdict}})
     if verdict["conflict"] and run_id:
         telemetry.signal(run_id, "guardian_conflict", negative=True)
+    stamp = entry["created_at"][:19].translate(str.maketrans("", "", "-:"))  # ids restart after a reset
+    telemetry.agent_call("guardian-agent", "memory_review", f"{mem_id}-{stamp}",
+                         input={"held": _brief(entry), "trusted_memory_ids": [m["_id"] for m in trusted]},
+                         output=verdict, properties={"run_id": run_id, "label": entry["label"]},
+                         signal="guardian_conflict" if verdict["conflict"] else "guardian_no_conflict",
+                         negative=verdict["conflict"])
     return verdict
 
 

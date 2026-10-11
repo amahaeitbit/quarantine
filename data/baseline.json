@@ -2,6 +2,9 @@
   "_id": "baseline",
   "dns_resolvers": ["10.0.0.2", "10.0.0.3"],
   "ntp_servers": ["10.0.0.10", "10.0.0.11"],
+  "dns_transport_allowed": ["dot", "doh", "doq"],
+  "dns_encrypted_endpoints": ["dns.corp.example"],
+  "dnssec_validation_required": true,
   "dns_zone": "corp.example",
   "dns_allowed_cidrs": ["10.0.0.0/8"]
 }

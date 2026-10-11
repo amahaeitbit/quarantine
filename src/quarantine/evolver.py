@@ -6,7 +6,7 @@ Run the watcher:  python -m quarantine.evolver   (with src on PYTHONPATH)
 import json
 import sys
 
-from quarantine import config, db, llm, policy
+from quarantine import config, db, llm, policy, telemetry
 
 AUTHORED = ("taint_sources", "tool_rules", "context_policy", "rationale")
 
@@ -136,18 +136,33 @@ def _stale(event: dict, current: dict) -> bool:
     return active is None or active["_id"] != current["_id"]
 
 
+def _report(event: dict, summary: dict, doc: dict | None) -> None:
+    """One Raindrop interaction per incident: the summary (ids and tool names only) in, the authored
+    policy out, and a signal saying whether it went live. No doc means the model gave up."""
+    active = doc is not None and doc["status"] == "active"
+    stamp = (doc["created_at"] if doc else event["ts"])[:19].translate(str.maketrans("", "", "-:"))
+    props = ({"status": doc["status"], "direction": doc["direction"], "caused_by": event["_id"],
+              "version": doc["version"]} if doc else {"status": "none", "caused_by": event["_id"]})
+    telemetry.agent_call("evolver-agent", "policy_proposal", f"{doc['_id'] if doc else event['_id']}-{stamp}",
+                         input=summary, output={k: doc[k] for k in AUTHORED} if doc else {}, properties=props,
+                         signal="policy_activated" if active else "policy_rejected", negative=not active)
+
+
 def handle(event: dict) -> dict | None:
     """React to one failed health_check event. Safe to call twice for the same event."""
     if not config.EVOLVER_ENABLED or db.col("policies").find_one({"caused_by": event["_id"]}):
         return None
     current = policy.load_active_policy()
-    proposal = propose_policy(build_incident_summary(event), current)
+    summary = build_incident_summary(event)
+    proposal = propose_policy(summary, current)
     if proposal is None:
+        _report(event, summary, None)
         return None
     if _stale(event, current):
         print(f"evolver: dropped a stale proposal for {event['_id']}", flush=True)
         return None
     doc = apply_policy(current, proposal, event)
+    _report(event, summary, doc)
     print(f"evolver: {event['_id']} -> {doc['_id']} ({doc['status']})", flush=True)
     return doc
 

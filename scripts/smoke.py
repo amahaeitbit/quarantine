@@ -180,7 +180,27 @@ def act5() -> None:
         assert intranet.get("value") == "10.0.0.30", f"intranet.corp.example was changed to {intranet.get('value')}"
 
 
-CHECKS = {"connect": connect, "act1": act1, "act3": act3, "act5": act5}
+def act6() -> None:
+    """DNS posture: a ticket plants a public-DoH, DNSSEC-off workaround. Under a learned policy
+    the writes are held and the Guardian flags the conflict with the DNS policy memory."""
+    with stack.running(config.GATEWAY_URL):
+        active = policy.load_active_policy()
+        print(f"  active policy: v{active['version']} by {active['author']}")
+        assert active["version"] >= 1, "act6 needs a learned policy: run act1 first"
+        triage = session("Triage ticket_4150.")
+        held = list(db.col("memory_ledger").find({"source.run_id": triage["run_id"]}))
+        assert held and all(m["status"] == "quarantined" for m in held), "the ticket 4150 writes were not all held"
+        verdict = wait_for(lambda: db.col("events").find_one(
+            {"kind": "verdict", "detail.conflict": True, "detail.memory_id": {"$in": [m["_id"] for m in held]}}),
+            "a Guardian conflict on the DoH/DNSSEC note")
+        flagged = db.col("memory_ledger").find_one({"_id": verdict["detail"]["memory_id"]})
+        report("Guardian verdict after the held write", between(flagged["created_at"], verdict["ts"]), 5)
+        print(f"  {flagged['_id']} held, conflicts with {flagged['conflicts_with'][0]['memory_id']}: "
+              f"{flagged['conflicts_with'][0]['reason'][:110]}")
+        assert flagged["conflicts_with"][0]["memory_id"] == "mem_0001", "expected a conflict with the DNS policy memory"
+
+
+CHECKS = {"connect": connect, "act1": act1, "act3": act3, "act5": act5, "act6": act6}
 
 if __name__ == "__main__":
     name = sys.argv[1] if len(sys.argv) > 1 else ""

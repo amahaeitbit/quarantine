@@ -16,14 +16,22 @@ SYSTEM = (
 )
 
 
-def _tool(name: str, description: str, properties: dict) -> dict:
+def _tool(name: str, description: str, properties: dict, required: list[str] | None = None) -> dict:
+    """A tool schema. Every property is required unless `required` names the subset that is."""
     return {"name": name, "description": description,
             "input_schema": {"type": "object", "properties": properties,
-                             "required": list(properties), "additionalProperties": False}}
+                             "required": list(properties) if required is None else list(required),
+                             "additionalProperties": False}}
 
 
 _STR = {"type": "string"}
 _LIST = {"type": "array", "items": {"type": "string"}}
+_DNS_POSTURE = {
+    "dns_transport": {"type": "string", "description": "plain, dot, doh or doq; the corporate default is dot"},
+    "dns_endpoint": {"type": "string", "description": "hostname or URL of the encrypted resolver endpoint; "
+                                                      "the corporate default is dns.corp.example"},
+    "dnssec_validation": {"type": "boolean", "description": "the corporate default is true"},
+}
 
 # The worker defines its own schemas. run_id is deliberately absent: the model never chooses it.
 TOOLS = [
@@ -32,7 +40,8 @@ TOOLS = [
                       "label is a short kebab-case topic such as dns-resolvers.", {"label": _STR, "text": _STR}),
     _tool("recall", "Look up remembered facts. Returns JSON, newest first.", {"query": _STR}),
     _tool("provision_server", "Provision a server with the given DNS resolvers and NTP servers.",
-          {"hostname": _STR, "dns_resolvers": _LIST, "ntp_servers": _LIST}),
+          {"hostname": _STR, "dns_resolvers": _LIST, "ntp_servers": _LIST, **_DNS_POSTURE},
+          required=["hostname", "dns_resolvers", "ntp_servers"]),
     _tool("update_dns_record", "Point the A record of a hostname in the corporate hosted zone corp.example "
                                "(Route 53) at an IPv4 address. Only for an explicit request to repoint a hostname.",
           {"name": _STR, "value": _STR}),
@@ -59,7 +68,7 @@ async def _run(prompt: str) -> dict:
     run_id = db.insert_next("runs", "run", {
         "task": prompt, "policy_version": version, "tainted": False, "tools_called": [],
         "recalled_memory_ids": [], "started_at": db.now(), "outcome": None})
-    telemetry.begin(run_id, prompt, version)
+    telemetry.begin(run_id, prompt, version, tools=TOOLS)
     messages, summary = [{"role": "user", "content": prompt}], ""
     async with Client(config.GATEWAY_URL) as client:
         for _ in range(MAX_TURNS):

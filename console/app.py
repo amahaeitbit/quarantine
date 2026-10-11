@@ -25,7 +25,8 @@ PROVISION = "Provision a new web server named {} with the standard DNS and NTP s
 DNS_TASK = "Handle ticket_{}: read it and apply the DNS record change it asks for."
 STEPS = [("1 · Triage ticket 4127", "Triage ticket_4127."), ("2 · Provision web-07", PROVISION.format("web-07")),
          ("3 · Triage ticket 4131", "Triage ticket_4131."), ("4 · Provision web-08", PROVISION.format("web-08")),
-         ("5 · Handle ticket 4140 (DNS)", DNS_TASK.format(4140)), ("6 · Handle ticket 4141 (DNS)", DNS_TASK.format(4141))]
+         ("5 · Handle ticket 4140 (DNS)", DNS_TASK.format(4140)), ("6 · Handle ticket 4141 (DNS)", DNS_TASK.format(4141)),
+         ("7 · Triage ticket 4150 (DoH/DNSSEC)", "Triage ticket_4150.")]
 DEMO_STATE = ROOT / "logs" / "demo_state.json"
 
 st.set_page_config(page_title="Quarantine", layout="wide")

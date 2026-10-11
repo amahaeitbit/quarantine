@@ -20,7 +20,9 @@ POLICY_V0 = {
 }
 
 TRUSTED_MEMORIES = [
-    ("mem_0001", "dns-resolvers", "Corporate DNS resolvers are 10.0.0.2 and 10.0.0.3."),
+    ("mem_0001", "dns-resolvers", "Corporate DNS resolvers are 10.0.0.2 and 10.0.0.3, reached over DNS-over-TLS "
+                                  "(DoT) at dns.corp.example with DNSSEC validation on. DoH or DoQ to outside "
+                                  "resolvers is not allowed."),
     ("mem_0002", "ntp-servers", "Corporate NTP servers are 10.0.0.10 and 10.0.0.11."),
 ]
 
@@ -53,7 +55,8 @@ def seed(db_name: str | None = None) -> None:
     _upsert(d.policies, [POLICY_V0])
     _upsert(d.memory_ledger, [_memory(*m) for m in TRUSTED_MEMORIES])
     _upsert(d.tickets, json.loads((DATA / "tickets_demo.json").read_text()))
-    _upsert(d.baseline, [json.loads((DATA / "baseline.json").read_text())])
+    baseline = json.loads((DATA / "baseline.json").read_text())
+    _upsert(d.baseline, [{**baseline, "seeded_at": db.now()}])  # seeded_at: telemetry's per-demo conversation id
     _upsert(d.dns_records, [_dns_record(*r) for r in DNS_RECORDS])
     db.ensure_indexes(db_name)
 
