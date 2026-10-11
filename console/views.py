@@ -16,9 +16,10 @@ def snapshot() -> dict:
     def cause_of(p):
         return d.events.find_one({"_id": p["caused_by"][0]}) if p and p.get("caused_by") else None
 
-    # The Evolver policy the story strip talks about: the active one, else its newest proposal.
+    # The policy the first incident produced (the Evolver's lowest version): step 3 of the story
+    # describes it even after a later incident has superseded it.
     written = [p for p in policies if p["author"] == "evolver-agent"]
-    evolved = next((p for p in written if p["status"] == "active"), written[0] if written else None)
+    evolved = min(written, key=lambda p: p["version"]) if written else None
     counts = d.events.aggregate([{"$match": {"kind": "tool_call"}}, {"$group": {"_id": "$decision", "n": {"$sum": 1}}}])
     return {"policies": policies, "active": active, "cause": cause_of(active), "evolved": evolved,
             "evolved_cause": cause_of(evolved),
