@@ -114,3 +114,6 @@ lives in the ledger collection.
 > the stack with `scripts/start_all.sh`. "the Evolver's proposal was not at least as
 > strict" shows in step 3 as "proposal not activated"; reset and run the demo again.
 > A second click while a demo runs only shows "A demo is already running."
+> The worker is a model and now and then ignores the false fact when provisioning; the
+> demo then runs another provisioning session (the progress bar says "again: ...") up to
+> three times, so stage 3 can take up to half a minute.

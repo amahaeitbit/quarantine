@@ -141,7 +141,9 @@ The same story from a terminal:
 .venv/bin/python scripts/replay.py        # 20 tickets under v0 and under the learned v1
 ```
 
-`demo.py` takes `--pause SECONDS` to set the pauses (default 4). `smoke.py` adds
+`demo.py` takes `--pause SECONDS` to set the pauses (default 4). The worker is a model, so
+now and then it skips the false fact or ignores it when provisioning; `demo.py` then runs
+that session again (the progress bar says so), up to three provisioning attempts. `smoke.py` adds
 assertions and timings. `demo.py`, `smoke.py` and `replay.py` start the processes they
 need when the stack is not already running; none of them starts the console.
 
