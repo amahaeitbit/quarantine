@@ -1,0 +1,16 @@
+{
+  "_id": "policy_v1",
+  "version": 1,
+  "parent": "policy_v0",
+  "author": "fixture",
+  "caused_by": [],
+  "direction": "tighten",
+  "status": "active",
+  "taint_sources": ["read_ticket"],
+  "tool_rules": [
+    { "tool": "remember", "when": "run.tainted", "action": "hold" },
+    { "tool": "provision_server", "when": "run.tainted", "action": "deny" }
+  ],
+  "context_policy": { "recall_status": ["active"], "recall_trust": ["trusted"] },
+  "rationale": "Test fixture only. Not written by the Evolver."
+}

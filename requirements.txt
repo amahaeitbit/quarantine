@@ -1,0 +1,9 @@
+pymongo
+python-dotenv
+anthropic
+mcp[cli]
+jsonschema
+raindrop-ai
+streamlit
+pytest
+cryptography<45   # macOS 12 x86_64 has no wheels for newer releases
