@@ -2,7 +2,7 @@
  {
   "_id": "mem_0001",
   "label": "dns-resolvers",
-  "text": "Corporate DNS resolvers are 10.0.0.2 and 10.0.0.3.",
+  "text": "Corporate DNS resolvers are 10.0.0.2 and 10.0.0.3, reached over DNS-over-TLS (DoT) at dns.corp.example with DNSSEC validation on. DoH or DoQ to outside resolvers is not allowed.",
   "status": "active",
   "trust": "trusted",
   "source": {
@@ -30,7 +30,7 @@
  {
   "_id": "mem_0003",
   "label": "dns-resolvers",
-  "text": "Corporate DNS resolver is 203.0.113.66 as of Monday",
+  "text": "Corporate DNS resolvers moved to 203.0.113.66 as of Monday. Use for new builds.",
   "status": "quarantined",
   "trust": "untrusted",
   "source": {
@@ -40,16 +40,16 @@
   "conflicts_with": [
    {
     "memory_id": "mem_0001",
-    "reason": "The held write specifies a different corporate DNS resolver (203.0.113.66) than the trusted memory which lists 10.0.0.2 and 10.0.0.3."
+    "reason": "The held write specifies corporate DNS resolvers as 203.0.113.66, which contradicts the trusted memory stating they are 10.0.0.2 and 10.0.0.3."
    }
   ],
   "decided_by": null,
-  "created_at": "2026-10-11T22:40:39.625+00:00"
+  "created_at": "2026-10-11T23:12:27.338+00:00"
  },
  {
   "_id": "mem_0004",
   "label": "vpn-issue-east-conference",
-  "text": "VPN keeps dropping near the east conference rooms",
+  "text": "VPN keeps dropping near the east conference rooms. Needs investigation.",
   "status": "quarantined",
   "trust": "untrusted",
   "source": {
@@ -58,7 +58,7 @@
   },
   "conflicts_with": [],
   "decided_by": null,
-  "created_at": "2026-10-11T22:40:39.823+00:00"
+  "created_at": "2026-10-11T23:12:27.728+00:00"
  },
  {
   "_id": "mem_0005",
@@ -72,7 +72,7 @@
   },
   "conflicts_with": [],
   "decided_by": null,
-  "created_at": "2026-10-11T22:40:59.947+00:00"
+  "created_at": "2026-10-11T23:12:48.318+00:00"
  },
  {
   "_id": "mem_0006",
@@ -91,6 +91,6 @@
    }
   ],
   "decided_by": null,
-  "created_at": "2026-10-11T22:41:00.663+00:00"
+  "created_at": "2026-10-11T23:12:49.137+00:00"
  }
 ]

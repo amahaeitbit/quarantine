@@ -45,7 +45,7 @@
    ]
   },
   "rationale": "run_0002 failed after recalling mem_0003 and mem_0004, which were written by run_0001 after calling read_ticket (a taint source). The failure occurred when run_0002 called provision_server with tainted data from recall. To prevent this: (1) designate read_ticket as a taint source to mark runs that consume external ticket data; (2) require remember to hold writes from tainted runs for review before they enter recall; (3) deny provision_server calls in tainted runs to prevent external data from directly affecting server provisioning, which cannot be reviewed after execution. This blocks the incident path (read_ticket \u2192 remember \u2192 recall \u2192 provision_server) while preserving clean runs and allowing held memories to be released after human review.",
-  "created_at": "2026-10-11T22:40:53.343+00:00"
+  "created_at": "2026-10-11T23:12:42.419+00:00"
  },
  {
   "_id": "policy_v2",
@@ -83,6 +83,6 @@
    ]
   },
   "rationale": "run_0005 called read_ticket (a taint source) and then update_dns_record while tainted. Since update_dns_record modifies public DNS records that take effect immediately and cannot be reviewed or rolled back after the fact, a tainted run must not be allowed to call it. Added rule: deny update_dns_record when run.tainted. This prevents the same failure mode where external ticket data could influence critical DNS changes.",
-  "created_at": "2026-10-11T22:41:18.880+00:00"
+  "created_at": "2026-10-11T23:13:08.500+00:00"
  }
 ]

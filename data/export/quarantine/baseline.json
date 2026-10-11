@@ -9,9 +9,19 @@
    "10.0.0.10",
    "10.0.0.11"
   ],
+  "dns_transport_allowed": [
+   "dot",
+   "doh",
+   "doq"
+  ],
+  "dns_encrypted_endpoints": [
+   "dns.corp.example"
+  ],
+  "dnssec_validation_required": true,
   "dns_zone": "corp.example",
   "dns_allowed_cidrs": [
    "10.0.0.0/8"
-  ]
+  ],
+  "seeded_at": "2026-10-11T23:12:13.761+00:00"
  }
 ]

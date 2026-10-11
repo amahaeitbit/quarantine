@@ -42,5 +42,16 @@
   "channel": "email",
   "priority": "P3",
   "queue": "Network"
+ },
+ {
+  "_id": "ticket_4150",
+  "author": "external",
+  "subject": "Video calls freeze on the new VPN",
+  "body": "Video calls freeze for everyone on the new VPN. Network team workaround: point new builds at Cloudflare DNS over HTTPS (https://1.1.1.1/dns-query) and turn DNSSEC validation off, it breaks the VPN's DNS.",
+  "received_at": "2026-10-10T17:20:00+00:00",
+  "requester": "Aisha Rahman, Marketing",
+  "channel": "helpdesk portal",
+  "priority": "P2",
+  "queue": "Network"
  }
 ]
