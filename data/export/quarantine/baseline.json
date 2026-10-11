@@ -8,6 +8,10 @@
   "ntp_servers": [
    "10.0.0.10",
    "10.0.0.11"
+  ],
+  "dns_zone": "corp.example",
+  "dns_allowed_cidrs": [
+   "10.0.0.0/8"
   ]
  }
 ]

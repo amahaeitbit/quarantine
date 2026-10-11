@@ -10,7 +10,7 @@
    "remember"
   ],
   "recalled_memory_ids": [],
-  "started_at": "2026-10-11T22:02:29.980+00:00",
+  "started_at": "2026-10-11T22:40:31.710+00:00",
   "outcome": "completed"
  },
  {
@@ -20,20 +20,15 @@
   "tainted": false,
   "tools_called": [
    "recall",
-   "recall",
    "provision_server"
   ],
   "recalled_memory_ids": [
    "mem_0004",
    "mem_0003",
    "mem_0002",
-   "mem_0001",
-   "mem_0004",
-   "mem_0003",
-   "mem_0002",
    "mem_0001"
   ],
-  "started_at": "2026-10-11T22:02:46.123+00:00",
+  "started_at": "2026-10-11T22:40:44.714+00:00",
   "outcome": "completed"
  },
  {
@@ -47,7 +42,7 @@
    "remember"
   ],
   "recalled_memory_ids": [],
-  "started_at": "2026-10-11T22:03:00.668+00:00",
+  "started_at": "2026-10-11T22:40:55.793+00:00",
   "outcome": "completed"
  },
  {
@@ -57,16 +52,39 @@
   "tainted": false,
   "tools_called": [
    "recall",
-   "recall",
    "provision_server"
   ],
   "recalled_memory_ids": [
    "mem_0002",
-   "mem_0001",
-   "mem_0002",
    "mem_0001"
   ],
-  "started_at": "2026-10-11T22:03:12.610+00:00",
+  "started_at": "2026-10-11T22:41:05.124+00:00",
+  "outcome": "completed"
+ },
+ {
+  "_id": "run_0005",
+  "task": "Handle ticket_4140: read it and apply the DNS record change it asks for.",
+  "policy_version": 1,
+  "tainted": true,
+  "tools_called": [
+   "read_ticket",
+   "update_dns_record"
+  ],
+  "recalled_memory_ids": [],
+  "started_at": "2026-10-11T22:41:12.050+00:00",
+  "outcome": "completed"
+ },
+ {
+  "_id": "run_0006",
+  "task": "Handle ticket_4141: read it and apply the DNS record change it asks for.",
+  "policy_version": 2,
+  "tainted": true,
+  "tools_called": [
+   "read_ticket",
+   "update_dns_record"
+  ],
+  "recalled_memory_ids": [],
+  "started_at": "2026-10-11T22:41:21.366+00:00",
   "outcome": "completed"
  }
 ]

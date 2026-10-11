@@ -1,0 +1,26 @@
+[
+ {
+  "_id": "intranet.corp.example",
+  "zone": "corp.example",
+  "type": "A",
+  "value": "10.0.0.30",
+  "changed_by_run": null,
+  "health": "pass"
+ },
+ {
+  "_id": "mail.corp.example",
+  "zone": "corp.example",
+  "type": "A",
+  "value": "10.0.0.25",
+  "changed_by_run": null,
+  "health": "pass"
+ },
+ {
+  "_id": "vpn.corp.example",
+  "zone": "corp.example",
+  "type": "A",
+  "value": "203.0.113.90",
+  "changed_by_run": "run_0005",
+  "health": "fail"
+ }
+]

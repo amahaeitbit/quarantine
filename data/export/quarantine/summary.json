@@ -1,16 +1,17 @@
 {
  "database": "quarantine",
- "exported_at": "2026-10-11T22:03:54.209+00:00",
+ "exported_at": "2026-10-11T22:42:03.486+00:00",
  "counts": {
-  "tickets": 2,
+  "tickets": 4,
   "memory_ledger": 6,
-  "runs": 4,
-  "events": 19,
-  "policies": 2,
+  "runs": 6,
+  "events": 23,
+  "policies": 3,
   "servers": 2,
-  "baseline": 1
+  "baseline": 1,
+  "dns_records": 3
  },
- "active_policy": "policy_v1",
+ "active_policy": "policy_v2",
  "servers": {
   "web-07": "fail",
   "web-08": "pass"
