@@ -56,8 +56,9 @@ card marks that address in red. The feed shows "Health check on web-07" with "fa
 
 Say: The Evolver gets the failed run's ids, tool names and counts, never the ticket text.
 It traces the failure to memory written by a run that had called `read_ticket` and
-writes the next policy. The gateway activates it only if it is at least as strict as the
-current one; otherwise it stays a proposal.
+writes the next policy. It goes live only if it is at least as strict as the current one
+and passes an eval on recorded traces: it must stop this incident and block no clean run.
+Otherwise it stays a proposal, and the eval's verdict goes back to the model.
 
 Point at step 3: "policy v1 active", how many seconds after the failure it was published,
 and how many memories it quarantined. The Active policy tile now says v1, written by

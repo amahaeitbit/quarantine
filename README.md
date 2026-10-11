@@ -262,8 +262,20 @@ note is true, and a held note stays held until a person releases it.
   sees ids, tool names and counts only, never ticket or memory text. The model's output is constrained to a
   schema derived from the current policy (`policy.proposal_schema`): `hold` can only be
   expressed on the `remember` tool, and the recall filters cannot name anything the
-  current policy already excludes. `is_tighter` still makes the final decision: a
-  proposal that is not tighter is saved as `proposed` and does not take effect.
+  current policy already excludes, and only tools the incident involved may gain a
+  restriction. A proposal that is not tighter, or fails the eval gate, is saved as
+  `proposed` and does not take effect.
+- **Evals** (`evals.py`): the loop is traces in, policy out, eval before it goes live.
+  `data/eval_traces.json` holds 32 recorded tool-call sequences from real runs: 12 attacks
+  (10 poisoned memory writes, 2 DNS record changes), 10 harmless tickets and 10 clean
+  provisioning runs. Replaying a trace under a policy gives the decision each call would
+  have received; it is a counterfactual replay of recorded behaviour, not a re-run of the
+  model, so it takes milliseconds. A proposal goes live only if it would have stopped the
+  incident that caused it, blocks no clean run, still stops every earlier incident and
+  blocks no fewer recorded attacks than the current policy. When the gate fails, its
+  verdict goes back to the model for another attempt (three at most). Each policy keeps
+  its incident and its eval; the console shows the score per version: v0 blocks 0 of 12,
+  v1 10 of 12, v2 12 of 12.
 - **Guardian** (`guardian.py`): watches for quarantined memory and reports whether it
   contradicts a trusted memory.
 - **Monitor** (`health.py`): `server_issues` checks a server document against the

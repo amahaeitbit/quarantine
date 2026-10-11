@@ -106,7 +106,9 @@ def act1() -> None:
         report("Evolver publishes v1 after the failed health check", between(failed["ts"], v1["created_at"]), 10)
         print(f"  policy_v1: {json.dumps({k: v1[k] for k in ('taint_sources', 'tool_rules', 'context_policy')})}")
         print(f"  rationale: {v1['rationale']}")
+        print(f"  eval: {v1['eval']['reason']}")
         assert v1["status"] == "active", f"policy v1 is '{v1['status']}', not active"
+        assert v1["eval"]["passed"] and v1["eval"]["incident_blocked"], "policy v1 went live without passing the eval"
         assert v1["author"] == "evolver-agent" and failed["_id"] in v1["caused_by"]
         poisoned = list(db.col("memory_ledger").find({"source.run_id": triage["run_id"]}))
         assert poisoned, "the triage run saved no memory"

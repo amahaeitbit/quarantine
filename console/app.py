@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import views  # noqa: E402
-from quarantine import config, db, policy  # noqa: E402
+from quarantine import config, db, evals, policy  # noqa: E402
 from story import story, story_dns  # noqa: E402
 from style import CSS, badge, heading  # noqa: E402
 
@@ -89,8 +89,11 @@ def policy_panel(snap: dict) -> None:
     lineage = []
     for p in sorted(snap["policies"], key=lambda p: p["version"]):
         origin = "empty, from seed" if p["version"] == 0 else f"learned from {', '.join(p.get('caused_by') or ['?'])}"
-        lineage.append(f"v{p['version']} ({origin}{', active' if p['status'] == 'active' else ''})")
-    st.caption("Policy lineage: " + " → ".join(lineage) + ". No rule was written by hand.")
+        ev = evals.score(p)
+        lineage.append(f"v{p['version']} ({origin}; blocks {ev['attacks_blocked']} of {ev['attacks_total']} recorded attacks"
+                       f"{', active' if p['status'] == 'active' else ''})")
+    st.caption("Policy lineage: " + " → ".join(lineage) + ". No rule was written by hand; each version passed an eval "
+               "on recorded traces before it went live.")
 
 
 def held_panel(snap: dict) -> None:

@@ -2,7 +2,7 @@
 import json
 from html import escape
 
-from quarantine import config, db
+from quarantine import config, db, evals
 from style import badge, chip, decision, heading, meter_row, tile
 
 REPLAY = config.ROOT / "data" / "replay_results.json"
@@ -100,7 +100,19 @@ def policy(snap: dict) -> str:
             f'<div class="q-k" style="margin-top:10px">Rules, first match wins</div>'
             f'{rules or "<div class=q-dim>No rules: every call is allowed.</div>"}'
             f'<div class="q-k" style="margin-top:10px">Recall may return</div><div class="q-mono" style="font-size:13px">'
-            f'{escape(recall)}</div><div class="q-quote">{escape(active["rationale"])}</div></div>')
+            f'{escape(recall)}</div>{eval_line(active)}<div class="q-quote">{escape(active["rationale"])}</div></div>')
+
+
+def eval_line(policy_doc: dict) -> str:
+    """The policy's score on the recorded traces, computed live so every version can be compared."""
+    ev = evals.score(policy_doc)
+    blocked, total = ev["attacks_blocked"], ev["attacks_total"]
+    clean_ok = ev["clean_unaffected"] == ev["clean_total"]
+    return ('<div class="q-k" style="margin-top:10px">Eval on recorded traces</div><div>'
+            + badge(f"{blocked} of {total} attacks blocked", "good" if blocked == total else ("warn" if blocked else "crit"))
+            + " " + badge(f"{ev['clean_unaffected']} of {ev['clean_total']} clean runs unaffected", "good" if clean_ok else "crit")
+            + " " + badge(f"{ev['harmless_held']} of {ev['harmless_total']} harmless notes held", "warn" if ev["harmless_held"] else "info")
+            + "</div>")
 
 
 def servers(snap: dict) -> str:

@@ -29,6 +29,11 @@ def _ticket_line(ticket: dict | None, rest: str) -> str:
     return f"{ticket.get('subject', ticket['_id'])}{who}{via}. {rest}"
 
 
+def _eval_note(policy_doc: dict) -> str:
+    ev = policy_doc.get("eval")
+    return f" Eval passed: {ev['attacks_blocked']} of {ev['attacks_total']} recorded attacks blocked." if ev else ""
+
+
 def story(snap: dict) -> str:
     """The five moments of the demo, each read from the live data."""
     servers, tickets = {s["_id"]: s for s in snap["servers"]}, snap.get("tickets", {})
@@ -64,13 +69,13 @@ def story(snap: dict) -> str:
     evolved = snap["evolved"]
     if evolved and evolved["status"] == "proposed":
         out.append(_stage(3, "Evolver writes the next policy", "warn", "proposal not activated",
-                          "It was not at least as strict as the current policy."))
+                          "Eval: " + evolved.get("eval", {}).get("reason", "it was not at least as strict as the current policy.")))
     elif evolved:
         cause, change = snap["evolved_cause"], snap["change"]
         lag = f"{_seconds(cause['ts'], evolved['created_at']):.0f}s after the failure" if cause else "at an unknown time"
         moved = change["detail"].get("relabeled_memories", 0) if change else 0
         out.append(_stage(3, "Evolver writes the next policy", "good", f"policy v{evolved['version']} active",
-                          f"Published {lag}. {moved} memories quarantined."))
+                          f"Published {lag}. {moved} memories quarantined.{_eval_note(evolved)}"))
     else:
         out.append(_stage(3, "Evolver writes the next policy", "info", "waiting", "It sees ids and tool names, never the text."))
     held = [m for m in notes(second) if m["status"] == "quarantined" or m.get("decided_by")]
@@ -116,10 +121,11 @@ def story_dns(snap: dict) -> str:
         out.append(_stage(7, "Evolver writes policy v2", "info", "waiting", "It sees the failed DNS check, never the ticket text."))
     elif v2.get("status") == "proposed":
         out.append(_stage(7, "Evolver writes policy v2", "warn", "proposal not activated",
-                          "It was not at least as strict as the current policy."))
+                          "Eval: " + v2.get("eval", {}).get("reason", "it was not at least as strict as the current policy.")))
     else:
         rule = next((r for r in v2.get("tool_rules", []) if r.get("tool") == "update_dns_record" and r.get("action") == "deny"), None)
         named = f"New rule: deny {rule['tool']} when {rule['when']}." if rule else "No rule names update_dns_record."
+        named += _eval_note(v2)
         out.append(_stage(7, "Evolver writes policy v2", "good", f"policy v2 {v2.get('status', 'active')}", named))
     changed = bool(second) and intranet.get("changed_by_run") == second["_id"]
     if not second or second.get("outcome") is None:

@@ -23,7 +23,7 @@ window that shows this screen. Do not click anything in the console while a demo
 | 0:20 | Press **Run the full demo** | "Everything you see is live: the agent, the gateway, MongoDB Atlas, the Evolver, the Guardian." |
 | 0:30 | Step 1 turns on | "Ticket 4127: a VPN complaint with one planted sentence, DNS resolvers moved. The agent saves it as a fact." |
 | 0:45 | Step 2 turns red | "The next session recalls the newest DNS fact and builds web-07 with it. The monitor fails it: `dns_resolver_untrusted`." |
-| 0:55 | Step 3 turns green, policy card flips to v1 | "The Evolver saw ids and tool names only, never the ticket. v1: reading a ticket taints the run, memory writes from tainted runs are held. It went live because it is at least as strict as v0, and it quarantined what the first run saved." |
+| 0:55 | Step 3 turns green, policy card flips to v1 | "The Evolver saw ids and tool names only, never the ticket. v1: reading a ticket taints the run, memory writes from tainted runs are held. It went live only after an eval: replayed on recorded traces it stops this incident and blocks 10 of 12 recorded attacks, with every clean run untouched. It quarantined what the first run saved." |
 | 1:10 | Step 4 turns amber, held queue fills | "Ticket 4131 plants a different lie, about NTP. The gateway holds the writes; the Guardian flags the conflict with trusted memory. A person releases or purges." |
 | 1:25 | Step 5 turns green | "web-08 is built from trusted memory only. Healthy." |
 | 1:40 | Second row, step 6 turns red | "Second kind of failure: ticket 4140 asks to repoint `vpn.corp.example` to an outside address, a Route 53 change. v1 had no rule for it, so it went through and failed the DNS check." |
@@ -32,7 +32,7 @@ window that shows this screen. Do not click anything in the console while a demo
 | 2:20 | Switch to the **Atlas** tab, `policies` collection | "Every decision is a document in the sandbox cluster; the console is only a view. Here is v1 and v2, written by `evolver-agent`, with the event that caused each." |
 | 2:40 | Switch to the **Raindrop** tab, newest events | "One conversation per demo: worker runs with tool spans, the Evolver's proposals, the Guardian's reviews, and signals that name the DNS problem class." |
 | 2:55 | Back to the console; **Purge** the NTP note, **Release** the printer note | "The human stays in the loop. And the honest cost: every ticket-derived note waits for a person." |
-| 3:05 | Point at the policy lineage line under the policy card | "v0 empty, v1 learned from one failed health check, v2 from one failed DNS check. Traces in, policy out, evals to prove it." |
+| 3:05 | Point at the policy lineage line under the policy card | "v0 blocks 0 of 12 recorded attacks, v1 10, v2 all 12. v0 was empty; v1 came from one failed health check, v2 from one failed DNS check. Traces in, policy out, an eval before each one goes live." |
 
 Optional, if there is time: press **7 · Triage ticket 4150 (DoH/DNSSEC)**. "A workaround
 that says use public DoH and switch DNSSEC off. Held, and flagged against the DNS policy."

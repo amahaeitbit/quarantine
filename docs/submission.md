@@ -60,9 +60,14 @@ recalled, the memory id, the writer run and that run's `tools_called`. It never 
 or memory text. The model's JSON output is constrained to `policy.proposal_schema(current)`:
 `hold` can only be expressed on `remember`, and the recall filters cannot name a status or
 trust level the current policy already excludes. `policy.is_tighter(old, new)` makes the
-final decision: keep every taint source, do not widen `recall`, decide at least as strictly
-for every tool tainted or not, and differ. Only a tighter policy becomes `active`; any other
-is saved as `proposed`. Adding a taint source quarantines every unreviewed memory written by
+structural decision: keep every taint source, do not widen `recall`, decide at least as
+strictly for every tool tainted or not, and differ. Then comes the eval gate (`evals.py`):
+the proposal is replayed against 32 recorded tool-call sequences from real runs and against
+the incident's own traces. It becomes `active` only if it would have stopped that incident,
+blocks no clean run and loses no ground on recorded attacks; otherwise the eval's verdict
+goes back to the model for another attempt, and a proposal that never passes is saved as
+`proposed`. Each policy stores its incident and its eval. On the recorded traces v0 blocks
+0 of 12 attacks, v1 10 of 12 and v2 12 of 12, with all 10 clean runs unaffected. Adding a taint source quarantines every unreviewed memory written by
 a run that used that tool, before the new version is published. The exported v1
 (`data/export/quarantine/policies.json`) makes `read_ticket` a taint source, holds
 `remember` for tainted runs, and cites run_0002, run_0001, mem_0003 and mem_0004.
@@ -144,7 +149,11 @@ acceptance runs in the commit history were made with it on.
    `hold` on a tool that cannot hold. Constraining the output to a schema derived from the
    current policy, and saying in the prompt why writes are held rather than denied, gave
    12 of 12 (commit 9d2856f). `is_tighter` still makes the final call.
-2. The vector index trails writes, usually by about a second and once by more than five,
+2. Structural tightness is not enough. One proposal in 12 was tighter than v0 yet did not
+   stop the incident: it tainted the run but left its memory writes trusted. An eval on
+   recorded traces now gates activation and feeds its verdict back to the model; both
+   Evolver steps pass 12 of 12 varied incidents.
+3. The vector index trails writes, usually by about a second and once by more than five,
    so the worker missed a fact it had just saved. Recall now always reads the five newest
    eligible memories from the ledger; vector search only ranks older ones (commit 659f8c5).
 

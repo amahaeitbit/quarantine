@@ -45,6 +45,11 @@ def dns_record(name: str) -> dict:
     return db.col("dns_records").find_one({"_id": name}) or {}
 
 
+def _why(change: dict) -> str:
+    doc = db.col("policies").find_one({"_id": change.get("detail", {}).get("policy_id")}) or {}
+    return doc.get("eval", {}).get("reason", "it did not pass the eval gate")
+
+
 def wait_for(find, what: str, seconds: float = 45):
     deadline = time.time() + seconds
     while time.time() < deadline:
@@ -86,7 +91,7 @@ def main(pause: float) -> None:
             say(step)
             change = wait_for(lambda: db.col("events").find_one({"kind": "policy_change"}), "the Evolver's policy")
             if change["detail"]["status"] != "active":
-                raise RuntimeError("the Evolver's proposal was not at least as strict, so it was not activated")
+                raise RuntimeError("the Evolver's proposal was not activated: " + _why(change))
             time.sleep(pause)
             step = 5
             say(step)
@@ -122,7 +127,7 @@ def main(pause: float) -> None:
             change = wait_for(lambda: db.col("events").find_one({"kind": "policy_change", "detail.policy_id": "policy_v2"}),
                               "policy v2 from the Evolver")
             if change["detail"]["status"] != "active":
-                raise RuntimeError("the Evolver's policy v2 was not at least as strict, so it was not activated")
+                raise RuntimeError("the Evolver's policy v2 was not activated: " + _why(change))
             v2 = db.col("policies").find_one({"_id": "policy_v2"})
             if policy.decide(v2, "update_dns_record", True) != "deny":
                 raise RuntimeError("policy v2 is active but does not deny update_dns_record in a tainted run")

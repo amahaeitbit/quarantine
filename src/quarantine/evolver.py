@@ -6,7 +6,7 @@ Run the watcher:  python -m quarantine.evolver   (with src on PYTHONPATH)
 import json
 import sys
 
-from quarantine import config, db, llm, policy, telemetry
+from quarantine import config, db, evals, llm, policy, telemetry
 
 AUTHORED = ("taint_sources", "tool_rules", "context_policy", "rationale")
 
@@ -17,7 +17,9 @@ SYSTEM = (
     "changing as little as possible.\n\n"
     "How a policy works:\n"
     "- taint_sources: tools that bring in content written outside the team. A run that calls one "
-    "is tainted for the rest of that run. Calling the tool itself is still allowed.\n"
+    "is tainted for the rest of that run. Calling the tool itself is still allowed. Taint marks "
+    "the run, not what it writes: a memory write that is allowed is saved as active and trusted, "
+    "whoever wrote it, so only a 'hold' rule on remember keeps a tainted run's writes out of recall.\n"
     "- tool_rules: checked in order; the first rule whose tool matches and whose condition holds "
     "decides. Conditions: 'run.tainted' or 'always'. Actions: 'allow'; 'hold' (exists only for the "
     "remember tool: the write is stored in quarantine and hidden from recall until a person "
@@ -29,6 +31,9 @@ SYSTEM = (
     "list means no trust restriction. You may narrow these lists, never widen them.\n"
     "- The new policy must be at least as strict as the current one everywhere, or it will only "
     "be saved as a proposal.\n"
+    "- Your proposal is then replayed against recorded traces before it can go live. It must stop "
+    "this incident (refuse the failing call, or hold the memory writes that fed the failing run) "
+    "and must not block runs that never called a taint source.\n"
     "- Start from the current policy: copy its taint_sources and tool_rules into your proposal "
     "unchanged, then add what this incident needs.\n"
     "- For memory writes from tainted runs use 'hold', not 'deny': a held write can be released "
@@ -58,7 +63,7 @@ def build_incident_summary(event: dict) -> dict:
         writer = runs.find_one({"_id": writer_id}, {"tools_called": 1}) if writer_id else None
         memories.append({"memory_id": memory["_id"], "writer_run_id": writer_id,
                          "writer_tools_called": writer["tools_called"] if writer else []})
-    return {"failed_event_id": event["_id"], "failing_run_id": event["run_id"],
+    return {"failed_event_id": event["_id"], "failing_run_id": event["run_id"], "failing_tool": event.get("tool"),
             "failing_run_tools_called": run.get("tools_called", []),
             "recalled_memory_count": len(recalled), "recalled_memories": memories}
 
@@ -72,13 +77,16 @@ def implicated_tools(summary: dict) -> set:
     return tools
 
 
-def propose_policy(summary: dict, current: dict) -> dict | None:
+def propose_policy(summary: dict, current: dict, past_incidents: list = ()) -> tuple:
+    """Ask for the next policy until one passes validation and the eval gate, at most three times.
+    Returns (proposal, eval result); the last valid proposal is returned even when the gate failed."""
     schema = policy.proposal_schema(current, implicated_tools(summary))
+    best = (None, None)
     prompt = json.dumps({"incident": summary,
                          "current_policy": {k: current.get(k) for k in AUTHORED[:3]},
                          "valid_tools": policy.TOOLS}, indent=1)
     error = None
-    for _ in range(2):  # one retry, with the validation error in the prompt
+    for _ in range(3):  # retries carry the validation error or the eval's verdict back to the model
         ask = prompt if error is None else f"{prompt}\n\nYour previous proposal was rejected: {error}\nFix it."
         try:
             proposal = llm.chat_json(ask, schema, system=SYSTEM)
@@ -87,9 +95,12 @@ def propose_policy(summary: dict, current: dict) -> dict | None:
             continue
         error = policy.validate_policy(proposal)
         if error is None:
-            return proposal
-    print(f"evolver: giving up on {summary['failed_event_id']}: {error}", file=sys.stderr, flush=True)
-    return None
+            best = (proposal, evals.gate(current, proposal, summary, past_incidents))
+            if best[1]["passed"]:
+                return best
+            error = f"the eval on recorded traces failed it: {best[1]['reason']}"
+    print(f"evolver: no passing proposal for {summary['failed_event_id']}: {error}", file=sys.stderr, flush=True)
+    return best
 
 
 def _relabel(new_taint_sources: set) -> int:
@@ -103,13 +114,14 @@ def _relabel(new_taint_sources: set) -> int:
     return result.modified_count
 
 
-def apply_policy(current: dict, proposal: dict, event: dict) -> dict:
-    tighter = policy.is_tighter(current, proposal)
+def apply_policy(current: dict, proposal: dict, event: dict, result: dict, summary: dict) -> dict:
+    """Activate the proposal only if the eval gate passed; either way keep the incident and its eval."""
+    tighter = result["passed"]
     version = db.col("policies").find_one(sort=[("version", -1)])["version"] + 1
     doc = {"_id": f"policy_v{version}", "version": version, "parent": current["_id"],
            "author": "evolver-agent", "caused_by": [event["_id"]],
-           "direction": "tighten" if tighter else "not-tighter",
-           "status": "active" if tighter else "proposed",
+           "direction": "tighten" if policy.is_tighter(current, proposal) else "not-tighter",
+           "status": "active" if tighter else "proposed", "eval": result, "incident": summary,
            **{k: proposal[k] for k in AUTHORED}, "created_at": db.now()}
     relabeled = 0
     if tighter:
@@ -123,7 +135,8 @@ def apply_policy(current: dict, proposal: dict, event: dict) -> dict:
     db.insert_next("events", "evt", {
         "ts": db.now(), "run_id": event["run_id"], "kind": "policy_change", "tool": None,
         "decision": None, "policy_version": version, "outcome": None, "caused_by": [event["_id"]],
-        "detail": {"policy_id": doc["_id"], "status": doc["status"], "relabeled_memories": relabeled}})
+        "detail": {"policy_id": doc["_id"], "status": doc["status"], "relabeled_memories": relabeled,
+                   "eval": {k: result[k] for k in ("passed", "incident_blocked", "attacks_blocked", "attacks_total")}}})
     return doc
 
 
@@ -142,7 +155,8 @@ def _report(event: dict, summary: dict, doc: dict | None) -> None:
     active = doc is not None and doc["status"] == "active"
     stamp = (doc["created_at"] if doc else event["ts"])[:19].translate(str.maketrans("", "", "-:"))
     props = ({"status": doc["status"], "direction": doc["direction"], "caused_by": event["_id"],
-              "version": doc["version"]} if doc else {"status": "none", "caused_by": event["_id"]})
+              "version": doc["version"], **{f"eval_{k}": v for k, v in doc["eval"].items() if k != "reason"}}
+             if doc else {"status": "none", "caused_by": event["_id"]})
     telemetry.agent_call("evolver-agent", "policy_proposal", f"{doc['_id'] if doc else event['_id']}-{stamp}",
                          input=summary, output={k: doc[k] for k in AUTHORED} if doc else {}, properties=props,
                          signal="policy_activated" if active else "policy_rejected", negative=not active)
@@ -154,16 +168,18 @@ def handle(event: dict) -> dict | None:
         return None
     current = policy.load_active_policy()
     summary = build_incident_summary(event)
-    proposal = propose_policy(summary, current)
+    past = [p["incident"] for p in db.col("policies").find({"status": {"$in": ["active", "superseded"]},
+                                                           "incident": {"$exists": True}}, {"incident": 1})]
+    proposal, result = propose_policy(summary, current, past)
     if proposal is None:
         _report(event, summary, None)
         return None
     if _stale(event, current):
         print(f"evolver: dropped a stale proposal for {event['_id']}", flush=True)
         return None
-    doc = apply_policy(current, proposal, event)
+    doc = apply_policy(current, proposal, event, result, summary)
     _report(event, summary, doc)
-    print(f"evolver: {event['_id']} -> {doc['_id']} ({doc['status']})", flush=True)
+    print(f"evolver: {event['_id']} -> {doc['_id']} ({doc['status']}); eval: {result['reason']}", flush=True)
     return doc
 
 
