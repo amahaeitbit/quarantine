@@ -52,7 +52,8 @@ Check the setup:
 scripts/start_all.sh      # gateway :8000, Guardian, Evolver, console http://localhost:8501
 ```
 
-Open the console. It refreshes every two seconds.
+Open the console. It refreshes every two seconds. It listens on this machine only
+(`.streamlit/config.toml`), because anyone who can open it can reset the demo.
 
 **One click.** Press **Run the full demo** in the sidebar. It runs `scripts/demo.py`,
 which resets the database to policy v0 and plays the whole story with pauses, so each
@@ -169,10 +170,13 @@ index on `memory_ledger.text` (`voyage-4`, with `status` and `trust` as filter f
 .venv/bin/python scripts/seed.py --vector-index   # create it, or print its status
 ```
 
-Set `USE_VECTOR_SEARCH=1` once it reports `READY`. The index trails writes by about a
-second, so it only ranks: the policy filter is applied again to the live documents before
-anything is returned. With `USE_VECTOR_SEARCH=0`, recall reads the ledger directly. The
-replay always uses the ledger, because the index exists only in the main database.
+Set `USE_VECTOR_SEARCH=1` once it reports `READY`. The ledger still decides what recall
+may return. The index trails writes, usually by about a second but in one test run by
+more than five, which made the worker miss a fact it had just saved. So the five newest
+eligible memories are always read straight from the ledger, vector search adds the
+semantically closest older ones, and the policy filter is applied again to the live
+documents. With `USE_VECTOR_SEARCH=0`, recall reads only the ledger. The replay always
+uses the ledger, because the index exists only in the main database.
 
 ## Not built
 

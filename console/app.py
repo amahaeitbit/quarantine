@@ -40,6 +40,17 @@ def launch(script: str, *args: str) -> None:
     st.toast(f"Started: {args[0] if args else script}")
 
 
+def launch_demo() -> None:
+    """Start the full demo once. The state file is written first, so a second click cannot start another."""
+    if demo_state().get("running"):
+        st.toast("A demo is already running.")
+        return
+    DEMO_STATE.parent.mkdir(exist_ok=True)
+    DEMO_STATE.write_text(json.dumps({"running": True, "step": 1, "total": 7, "label": "Starting",
+                                      "updated_at": time.time(), "error": None}))
+    launch("demo.py")
+
+
 def demo_state() -> dict:
     """What scripts/demo.py last reported, ignored once it is stale."""
     try:
@@ -82,12 +93,19 @@ def held_panel(snap: dict) -> None:
         st.caption("Nothing is held.")
     for m in held:
         with st.container(border=True):
-            flag = badge("flagged by the Guardian", "crit") if m.get("conflicts_with") else badge("no conflict found", "info")
+            if m.get("conflicts_with"):
+                flag = badge("flagged by the Guardian", "crit")
+            elif m["_id"] in snap["reviewed"]:
+                flag = badge("no conflict found", "info")
+            else:
+                flag = badge("under review", "run")
             html(f'<b class="q-mono">{escape(m["_id"])}</b> &nbsp;{flag}<div class="q-dim" style="margin-top:2px">'
                  f'{escape(m["label"])} · written by {escape(str(m["source"].get("run_id")))}</div>')
-            st.write(m["text"])  # st.write renders memory text as plain Markdown text, never as HTML
+            # Memory text and the Guardian's reason derive from ticket text: shown escaped, never as Markdown.
+            html(f'<div style="margin:8px 0">{escape(m["text"])}</div>')
             for conflict in m.get("conflicts_with", []):
-                st.error(f"Conflicts with {conflict['memory_id']}: {conflict['reason']}", icon=":material/error:")
+                html(f'<div class="q-warnbox"><b>✕ Conflicts with {escape(str(conflict["memory_id"] or "a trusted memory"))}'
+                     f'</b><br>{escape(conflict["reason"])}</div>')
             release, purge = st.columns(2)
             release.button("Release", key=f"release-{m['_id']}", on_click=decide, args=(m["_id"], True), width="stretch")
             purge.button("Purge", key=f"purge-{m['_id']}", on_click=decide, args=(m["_id"], False), width="stretch")
@@ -125,8 +143,7 @@ def page() -> None:
 html(CSS)
 with st.sidebar:
     st.header("Run the demo")
-    st.button("Run the full demo", type="primary", on_click=launch, args=("demo.py",), width="stretch",
-              disabled=bool(demo_state().get("running")))
+    st.button("Run the full demo", type="primary", on_click=launch_demo, width="stretch")
     st.caption("Resets to the empty policy, then plays all four steps with pauses. About one minute.")
     st.divider()
     st.subheader("Or step by step")

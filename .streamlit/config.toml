@@ -9,3 +9,7 @@ font = "sans serif"
 
 [browser]
 gatherUsageStats = false
+
+# Local only: anyone who can open the console can reset the demo.
+[server]
+address = "localhost"

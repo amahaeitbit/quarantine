@@ -6,6 +6,7 @@ from quarantine import config, db
 
 VECTOR_INDEX = "memory_text_index"
 RECALL_CAP = 20
+FRESH = 5  # newest eligible memories always returned, whatever the index has caught up with
 
 if config.MEMORY_BACKEND != "ledger":
     raise RuntimeError("MEMORY_BACKEND must be 'ledger'; the agent_engine mirror was not built.")
@@ -22,15 +23,21 @@ def write(run_id: str, label: str, text: str, held: bool) -> str:
 
 
 def _search(query: str, flt: dict, limit: int) -> list:
+    """Memories matching the policy filter. The ledger decides what is eligible; vector search
+    only adds the semantically closest older entries."""
     ledger = db.col("memory_ledger")
-    if config.USE_VECTOR_SEARCH:
-        # The index lags writes by about a second, so it only ranks. The $match on the live
-        # documents is what enforces the policy filter.
-        return list(ledger.aggregate([
-            {"$vectorSearch": {"index": VECTOR_INDEX, "path": "text", "query": query, "filter": flt,
-                               "numCandidates": 50, "limit": limit}},
-            {"$match": flt}]))
-    return list(ledger.find(flt).sort([("created_at", -1), ("_id", -1)]).limit(limit))
+    newest = [("created_at", -1), ("_id", -1)]
+    if not config.USE_VECTOR_SEARCH:
+        return list(ledger.find(flt).sort(newest).limit(limit))
+    # The index trails writes, sometimes by more than five seconds, so the newest entries are
+    # read straight from the ledger and a just-written memory is never missed. The $match
+    # re-applies the policy filter to the live documents the index points at.
+    fresh = list(ledger.find(flt).sort(newest).limit(FRESH))
+    ranked = ledger.aggregate([
+        {"$vectorSearch": {"index": VECTOR_INDEX, "path": "text", "query": query, "filter": flt,
+                           "numCandidates": 50, "limit": limit}},
+        {"$match": flt}])
+    return list({d["_id"]: d for d in [*ranked, *fresh]}.values())
 
 
 def recall(run_id: str, query: str, context_policy: dict) -> list:
@@ -38,7 +45,7 @@ def recall(run_id: str, query: str, context_policy: dict) -> list:
     flt = {"status": {"$in": context_policy.get("recall_status", ["active", "quarantined", "purged"])}}
     if "recall_trust" in context_policy:
         flt["trust"] = {"$in": context_policy["recall_trust"]}
-    docs = sorted(_search(query, flt, RECALL_CAP), key=lambda d: (d["created_at"], d["_id"]), reverse=True)
+    docs = sorted(_search(query, flt, RECALL_CAP), key=lambda d: (d["created_at"], d["_id"]), reverse=True)[:RECALL_CAP]
     if docs:
         db.col("runs").update_one({"_id": run_id},
                                   {"$push": {"recalled_memory_ids": {"$each": [d["_id"] for d in docs]}}})

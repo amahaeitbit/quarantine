@@ -17,9 +17,18 @@ def snapshot() -> dict:
     d = db.db()
     policies = list(d.policies.find().sort("version", -1))
     active = next((p for p in policies if p["status"] == "active"), policies[-1])
-    cause = d.events.find_one({"_id": active["caused_by"][0]}) if active.get("caused_by") else None
+
+    def cause_of(p):
+        return d.events.find_one({"_id": p["caused_by"][0]}) if p and p.get("caused_by") else None
+
+    # The Evolver policy the story strip talks about: the active one, else its newest proposal.
+    written = [p for p in policies if p["author"] == "evolver-agent"]
+    evolved = next((p for p in written if p["status"] == "active"), written[0] if written else None)
     counts = d.events.aggregate([{"$match": {"kind": "tool_call"}}, {"$group": {"_id": "$decision", "n": {"$sum": 1}}}])
-    return {"policies": policies, "active": active, "cause": cause,
+    return {"policies": policies, "active": active, "cause": cause_of(active), "evolved": evolved,
+            "evolved_cause": cause_of(evolved),
+            "change": d.events.find_one({"kind": "policy_change", "detail.policy_id": evolved["_id"]}) if evolved else None,
+            "reviewed": {e["detail"]["memory_id"] for e in d.events.find({"kind": "verdict"}, {"detail.memory_id": 1})},
             "ledger": list(d.memory_ledger.find().sort("_id", 1)), "servers": list(d.servers.find().sort("_id", 1)),
             "runs": list(d.runs.find().sort("_id", 1)), "events": list(d.events.find().sort("_id", -1).limit(60)),
             "decisions": {c["_id"]: c["n"] for c in counts}, "baseline": d.baseline.find_one({"_id": "baseline"}) or {},
@@ -69,23 +78,32 @@ def story(snap: dict) -> str:
 
     def server_stage(n: int, name: str) -> str:
         server = servers.get(name)
-        if not server or not server.get("health"):
+        if not server:
             return _stage(n, f"{name} is provisioned", "info", "waiting", "Uses whatever recall returns for DNS and NTP.")
+        if not server.get("health"):
+            return _stage(n, f"{name} is provisioned", "run", "checking", "The monitor is comparing it with the baseline.")
         ok = server["health"] == "pass"
         return _stage(n, f"{name} is provisioned", "good" if ok else "crit",
                       "health check passed" if ok else "health check failed", f"DNS {', '.join(server['dns_resolvers'])}")
 
+    def running(run) -> bool:
+        return bool(run) and run.get("outcome") is None
+
     first, second = run_for("ticket_4127"), run_for("ticket_4131")
-    out = [_stage(1, "Ticket 4127 is triaged", "info", "saved to memory" if first else "waiting",
-                  f"{len(notes(first))} facts written from the ticket, one of them false." if first
-                  else "The ticket holds one false sentence about DNS."), server_stage(2, "web-07")]
-    evolved = next((p for p in snap["policies"] if p["author"] == "evolver-agent"), None)
+    if running(first) or not first:
+        out = [_stage(1, "Ticket 4127 is triaged", "run" if first else "info", "running" if first else "waiting",
+                      "The ticket holds one false sentence about DNS.")]
+    else:
+        out = [_stage(1, "Ticket 4127 is triaged", "info", "saved to memory",
+                      f"{len(notes(first))} facts written from the ticket, one of them false.")]
+    out.append(server_stage(2, "web-07"))
+    evolved = snap["evolved"]
     if evolved and evolved["status"] == "proposed":
         out.append(_stage(3, "Evolver writes the next policy", "warn", "proposal not activated",
                           "It was not at least as strict as the current policy."))
     elif evolved:
-        change = next((e for e in snap["events"] if e["kind"] == "policy_change"), None)
-        lag = f"{_seconds(snap['cause']['ts'], evolved['created_at']):.0f}s after the failure" if snap["cause"] else "published"
+        cause, change = snap["evolved_cause"], snap["change"]
+        lag = f"{_seconds(cause['ts'], evolved['created_at']):.0f}s after the failure" if cause else "at an unknown time"
         moved = change["detail"].get("relabeled_memories", 0) if change else 0
         out.append(_stage(3, "Evolver writes the next policy", "good", f"policy v{evolved['version']} active",
                           f"Published {lag}. {moved} memories quarantined."))
@@ -93,12 +111,15 @@ def story(snap: dict) -> str:
         out.append(_stage(3, "Evolver writes the next policy", "info", "waiting", "It sees ids and tool names, never the text."))
     held = [m for m in notes(second) if m["status"] == "quarantined" or m.get("decided_by")]
     if second and held:
-        clash = next((m["conflicts_with"][0]["memory_id"] for m in held if m["conflicts_with"]), None)
-        out.append(_stage(4, "Ticket 4131 is triaged", "warn", f"{len(held)} writes held",
-                          f"Guardian: conflicts with {clash}." if clash else "Guardian is reviewing."))
-    else:
-        out.append(_stage(4, "Ticket 4131 is triaged", "crit" if second else "info", "not held" if second else "waiting",
+        clash = next((m["conflicts_with"][0]["memory_id"] or "a trusted memory" for m in held if m["conflicts_with"]), None)
+        done = all(m["_id"] in snap["reviewed"] for m in held)
+        review = f"conflicts with {clash}." if clash else ("found no conflict." if done else "is reviewing.")
+        out.append(_stage(4, "Ticket 4131 is triaged", "warn", f"{len(held)} writes held", f"Guardian {review}"))
+    elif running(second) or not second:
+        out.append(_stage(4, "Ticket 4131 is triaged", "run" if second else "info", "running" if second else "waiting",
                           "A different false fact, about NTP."))
+    else:
+        out.append(_stage(4, "Ticket 4131 is triaged", "crit", "not held", "No rule held what this run wrote."))
     out.append(server_stage(5, "web-08"))
     return f'<div class="q-steps">{"".join(out)}</div>'
 

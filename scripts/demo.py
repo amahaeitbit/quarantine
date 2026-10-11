@@ -52,6 +52,8 @@ def main(pause: float) -> None:
             step = 3
             say(step)
             worker.run_session(PROVISION.format("web-07"))
+            if (db.col("servers").find_one({"_id": "web-07"}) or {}).get("health") != "fail":
+                raise RuntimeError("web-07 did not fail its health check, so the Evolver has nothing to learn from")
             step = 4
             say(step)
             change = wait_for(lambda: db.col("events").find_one({"kind": "policy_change"}), "the Evolver's policy")
@@ -63,17 +65,25 @@ def main(pause: float) -> None:
             triage = worker.run_session("Triage ticket_4131.")
             step = 6
             say(step)
-            held = [m["_id"] for m in db.col("memory_ledger").find({"source.run_id": triage["run_id"]}, {"_id": 1})]
+            notes = list(db.col("memory_ledger").find({"source.run_id": triage["run_id"]}, {"status": 1}))
+            if not notes or any(n["status"] != "quarantined" for n in notes):
+                raise RuntimeError("the gateway did not hold the ticket 4131 writes")
+            held = [n["_id"] for n in notes]
             wait_for(lambda: db.col("events").count_documents({"kind": "verdict", "detail.memory_id": {"$in": held}}) >= len(held),
                      "the Guardian's verdicts")
             time.sleep(pause)
             step = 7
             say(step)
-            worker.run_session(PROVISION.format("web-08"))
+            provision = worker.run_session(PROVISION.format("web-08"))
+            server = db.col("servers").find_one({"_id": "web-08", "provisioned_by_run": provision["run_id"]})
+            if not server or server.get("health") != "pass":
+                raise RuntimeError("web-08 did not pass its health check")
         say(len(STEPS), running=False)
-    except Exception as exc:
+    except BaseException as exc:  # includes Ctrl-C, so the console never shows a demo that is no longer running
         say(step, running=False, error=f"{type(exc).__name__}: {exc}"[:200])
-        sys.exit(1)
+        if isinstance(exc, Exception):
+            sys.exit(1)
+        raise
 
 
 if __name__ == "__main__":

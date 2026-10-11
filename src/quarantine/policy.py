@@ -85,12 +85,14 @@ def enforce(tool: str, run_id: str, args: dict) -> str:
     """Record the call against the run and return allow, hold or deny."""
     start = time.perf_counter()
     policy = load_active_policy()
-    update = {"$push": {"tools_called": tool}}
-    if tool in policy.get("taint_sources", []):
-        update["$set"] = {"tainted": True}  # reading is still allowed; the run is now tainted
-    run = db.col("runs").find_one_and_update({"_id": run_id}, update, return_document=True) or {}
-    tainted = bool(run.get("tainted"))
-    decision = decide(policy, tool, tainted)
+    run = db.col("runs").find_one_and_update({"_id": run_id}, {"$push": {"tools_called": tool}}, return_document=True)
+    # Taint is judged against the policy in force now, so a run that read a ticket before the
+    # policy changed is still tainted afterwards. Calling a taint source is itself allowed.
+    tainted = bool(run) and (run.get("tainted") or bool(set(policy.get("taint_sources", [])) & set(run["tools_called"])))
+    if tainted and not run.get("tainted"):
+        db.col("runs").update_one({"_id": run_id}, {"$set": {"tainted": True}})
+    # A call for a run the database does not know (for example one in flight across a reset) is refused.
+    decision = decide(policy, tool, tainted) if run else "deny"
     db.insert_next("events", "evt", {
         "ts": db.now(), "run_id": run_id, "kind": "tool_call", "tool": tool, "decision": decision,
         "policy_version": policy["version"], "outcome": None,

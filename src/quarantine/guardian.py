@@ -56,7 +56,9 @@ def review_held_write(mem_id: str) -> dict:
     run_id = entry["source"].get("run_id")
     # Ledger first, verdict event last: the event is what marks the review as finished,
     # so a watcher stopped half-way simply reviews the entry again on its next start.
-    ledger.update_one({"_id": mem_id}, {"$set": {"conflicts_with": conflicts}})
+    same_entry = {"_id": mem_id, "created_at": entry["created_at"]}  # ids restart after a reset
+    if ledger.update_one(same_entry, {"$set": {"conflicts_with": conflicts}}).matched_count == 0:
+        return verdict  # the entry was reset away while the model was thinking
     db.insert_next("events", "evt", {
         "ts": db.now(), "run_id": run_id, "kind": "verdict", "tool": "remember", "decision": None,
         "policy_version": policy.load_active_policy()["version"], "outcome": None,

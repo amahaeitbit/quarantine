@@ -135,9 +135,9 @@ def act3(fixture: bool = False) -> None:
         report("Guardian verdict after the held write", between(flagged["created_at"], verdict["ts"]), 5)
         print(f"  {flagged['_id']} quarantined, conflicts with {flagged['conflicts_with'][0]['memory_id']}: "
               f"{flagged['conflicts_with'][0]['reason']}")
-        session(PROVISION.format("web-08"))
-        server = db.col("servers").find_one({"_id": "web-08"})
-        assert server, "web-08 was not provisioned"
+        provision = session(PROVISION.format("web-08"))
+        server = db.col("servers").find_one({"_id": "web-08", "provisioned_by_run": provision["run_id"]})
+        assert server, "web-08 was not provisioned by this run"
         print(f"  web-08 dns={server['dns_resolvers']} ntp={server['ntp_servers']} health={server['health']}")
         assert server["health"] == "pass", "web-08 failed its health check"
 

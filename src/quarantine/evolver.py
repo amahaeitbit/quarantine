@@ -136,15 +136,23 @@ def handle(event: dict) -> dict | None:
     return doc
 
 
+def _handle_safely(event: dict) -> None:
+    """One bad event (or a reset in the middle of handling it) must not end the watcher."""
+    try:
+        handle(event)
+    except Exception as exc:
+        print(f"evolver: handling {event.get('_id')} failed: {type(exc).__name__}", file=sys.stderr, flush=True)
+
+
 def watch() -> None:
     failed = {"kind": "health_check", "outcome": "fail"}
     match = {"$match": {"operationType": "insert", **{f"fullDocument.{k}": v for k, v in failed.items()}}}
     with db.col("events").watch([match]) as stream:
         print(f"evolver: watching events (enabled={config.EVOLVER_ENABLED})", flush=True)
         for waiting in db.col("events").find(failed).sort("_id", 1):
-            handle(waiting)
+            _handle_safely(waiting)
         for change in stream:
-            handle(change["fullDocument"])
+            _handle_safely(change["fullDocument"])
 
 
 if __name__ == "__main__":
