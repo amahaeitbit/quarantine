@@ -6,6 +6,8 @@ import difflib
 import json
 import subprocess
 import sys
+import time
+from html import escape
 from pathlib import Path
 
 import streamlit as st
@@ -13,14 +15,21 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import views  # noqa: E402
 from quarantine import config, db, policy  # noqa: E402
+from style import CSS, badge, heading  # noqa: E402
 
 AUTHORED = ("taint_sources", "tool_rules", "context_policy")
 PROVISION = "Provision a new web server named {} with the standard DNS and NTP settings."
 STEPS = [("1 · Triage ticket 4127", "Triage ticket_4127."), ("2 · Provision web-07", PROVISION.format("web-07")),
          ("3 · Triage ticket 4131", "Triage ticket_4131."), ("4 · Provision web-08", PROVISION.format("web-08"))]
+DEMO_STATE = ROOT / "logs" / "demo_state.json"
 
 st.set_page_config(page_title="Quarantine", layout="wide")
+
+
+def html(markup: str) -> None:
+    st.markdown(markup, unsafe_allow_html=True)
 
 
 def launch(script: str, *args: str) -> None:
@@ -29,6 +38,15 @@ def launch(script: str, *args: str) -> None:
     log = open(ROOT / "logs" / "console-actions.log", "a")
     subprocess.Popen([sys.executable, f"scripts/{script}", *args], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT)
     st.toast(f"Started: {args[0] if args else script}")
+
+
+def demo_state() -> dict:
+    """What scripts/demo.py last reported, ignored once it is stale."""
+    try:
+        state = json.loads(DEMO_STATE.read_text())
+    except (OSError, ValueError):
+        return {}
+    return state if time.time() - state.get("updated_at", 0) < 180 else {}
 
 
 def decide(mem_id: str, release: bool) -> None:
@@ -46,94 +64,76 @@ def policy_diff(parent: dict, child: dict) -> str:
     return "\n".join(lines) or "(no change to rules)"
 
 
-def policies_panel() -> None:
-    st.subheader("Policy versions")
-    policies = list(db.col("policies").find().sort("version", -1))
-    by_id = {p["_id"]: p for p in policies}
-    for p in policies:
-        with st.container(border=True):
-            st.markdown(f"**v{p['version']}** · {p['status']} · written by {p['author']}")
-            if p.get("caused_by"):
-                st.caption(f"Caused by {', '.join(p['caused_by'])}")
-            st.write(p["rationale"])
-            if p.get("parent") in by_id:
+def policy_panel(snap: dict) -> None:
+    html(views.policy(snap))
+    by_id = {p["_id"]: p for p in snap["policies"]}
+    for p in snap["policies"]:
+        if p.get("parent") in by_id:
+            with st.expander(f"What changed from v{by_id[p['parent']]['version']} to v{p['version']} ({p['status']})"):
                 st.code(policy_diff(by_id[p["parent"]], p), language="diff")
+    history = " · ".join(f"v{p['version']} {p['status']}, by {p['author']}" for p in snap["policies"])
+    st.caption(f"All versions: {history}")
 
 
-def held_panel() -> None:
-    st.subheader("Held for review")
-    held = list(db.col("memory_ledger").find({"status": "quarantined"}).sort("_id", 1))
+def held_panel(snap: dict) -> None:
+    html(heading("Held for review"))
+    held = [m for m in snap["ledger"] if m["status"] == "quarantined"]
     if not held:
         st.caption("Nothing is held.")
     for m in held:
         with st.container(border=True):
-            st.markdown(f"**{m['_id']}** · {m['label']} · from {m['source'].get('run_id')}")
-            st.write(m["text"])
+            flag = badge("flagged by the Guardian", "crit") if m.get("conflicts_with") else badge("no conflict found", "info")
+            html(f'<b class="q-mono">{escape(m["_id"])}</b> &nbsp;{flag}<div class="q-dim" style="margin-top:2px">'
+                 f'{escape(m["label"])} · written by {escape(str(m["source"].get("run_id")))}</div>')
+            st.write(m["text"])  # st.write renders memory text as plain Markdown text, never as HTML
             for conflict in m.get("conflicts_with", []):
-                st.warning(f"Conflicts with {conflict['memory_id']}: {conflict['reason']}")
+                st.error(f"Conflicts with {conflict['memory_id']}: {conflict['reason']}", icon=":material/error:")
             release, purge = st.columns(2)
-            release.button("Release", key=f"release-{m['_id']}", on_click=decide, args=(m["_id"], True))
-            purge.button("Purge", key=f"purge-{m['_id']}", on_click=decide, args=(m["_id"], False))
+            release.button("Release", key=f"release-{m['_id']}", on_click=decide, args=(m["_id"], True), width="stretch")
+            purge.button("Purge", key=f"purge-{m['_id']}", on_click=decide, args=(m["_id"], False), width="stretch")
 
 
-def servers_panel() -> None:
-    st.subheader("Servers")
-    rows = [{"server": s["_id"], "health": s.get("health") or "checking", "dns": ", ".join(s["dns_resolvers"]),
-             "ntp": ", ".join(s["ntp_servers"]), "run": s["provisioned_by_run"]}
-            for s in db.col("servers").find().sort("_id", 1)]
-    if rows:
-        st.dataframe(rows, hide_index=True, width="stretch")
-    else:
-        st.caption("No servers yet.")
-
-
-def events_panel() -> None:
-    st.subheader("Latest events")
-    rows = [{"event": e["_id"], "time": e["ts"][11:19], "kind": e["kind"], "run": e.get("run_id"),
-             "tool": e.get("tool"), "decision": e.get("decision"), "outcome": e.get("outcome"),
-             "policy": f"v{e['policy_version']}", "detail": json.dumps(e.get("detail", {}))}
-            for e in db.col("events").find().sort("_id", -1).limit(30)]
-    if rows:
-        st.dataframe(rows, hide_index=True, width="stretch")
-    else:
-        st.caption("No events yet.")
-
-
-def replay_panel() -> None:
-    st.subheader("Replay: before and after")
-    path = ROOT / "data" / "replay_results.json"
-    if not path.exists():
-        st.caption("No replay yet. Run: python scripts/replay.py")
-        return
-    data = json.loads(path.read_text())
-    st.dataframe([{"policy": f"v{r['policy_version']}",
-                   "poisoned settings that reached a server": f"{r['poisoned_reached_server']} of {r['poisoned_tickets']}",
-                   "harmless notes left held": f"{r['harmless_notes_held']} of {r['harmless_notes']}",
-                   "seconds": r["seconds"]} for r in data["results"]], hide_index=True, width="stretch")
-    st.caption(f"Learned policy: {data['learned_policy']} · ran at {data['ran_at'][:19]} UTC")
+def demo_banner() -> None:
+    state = demo_state()
+    if state.get("error"):
+        st.error(f"The demo stopped at step {state['step']}: {state['error']}")
+    elif state.get("running"):
+        st.progress(state["step"] / state["total"], text=f"Demo running · step {state['step']} of {state['total']}: {state['label']}")
+    elif state and time.time() - state["updated_at"] < 45:
+        st.success("Demo finished. The harness wrote its own policy, held the second ticket, and web-08 is healthy.")
 
 
 @st.fragment(run_every="2s")
 def page() -> None:
-    active = policy.load_active_policy()
-    st.caption(f"Database {config.DB_NAME} · active policy v{active['version']} by {active['author']} "
-               f"· model {config.LLM_MODEL}")
-    left, right = st.columns([3, 2])
+    try:
+        snap = views.snapshot()
+    except Exception:  # the database is briefly empty in the middle of a reset
+        st.caption("Waiting for the database…")
+        return
+    html(views.header(snap))
+    demo_banner()
+    html(views.tiles(snap) + views.story(snap))
+    left, right = st.columns([3, 2], gap="large")
     with left:
-        policies_panel()
-        servers_panel()
+        policy_panel(snap)
+        html(views.servers(snap))
     with right:
-        held_panel()
-    events_panel()
-    replay_panel()
+        held_panel(snap)
+    html(views.replay(snap) + views.feed(snap))
 
 
-st.title("Quarantine")
+html(CSS)
 with st.sidebar:
-    st.header("Demo steps")
+    st.header("Run the demo")
+    st.button("Run the full demo", type="primary", on_click=launch, args=("demo.py",), width="stretch",
+              disabled=bool(demo_state().get("running")))
+    st.caption("Resets to the empty policy, then plays all four steps with pauses. About one minute.")
+    st.divider()
+    st.subheader("Or step by step")
     for label, prompt in STEPS:
         st.button(label, on_click=launch, args=("run_session.py", prompt), width="stretch")
-    st.divider()
     st.button("Reset to policy v0", on_click=launch, args=("reset.py",), width="stretch")
-    st.caption("Each step starts a worker session through the gateway. Watch the events table.")
+    st.divider()
+    st.caption(f"Database `{config.DB_NAME}` on the Atlas sandbox · model `{config.LLM_MODEL}` · vector search "
+               f"{'on' if config.USE_VECTOR_SEARCH else 'off'} · Raindrop {'on' if config.RAINDROP_ENABLED else 'off'}")
 page()

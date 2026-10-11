@@ -1,4 +1,5 @@
 """Policy: schema, loading, enforcement at the gateway, validation, tightening check."""
+import copy
 import time
 
 import jsonschema
@@ -38,6 +39,26 @@ POLICY_SCHEMA = {
     "required": ["taint_sources", "tool_rules", "context_policy", "rationale"],
     "additionalProperties": False,
 }
+
+
+def proposal_schema(current: dict) -> dict:
+    """POLICY_SCHEMA narrowed to what a successor of `current` can say at all: 'hold' only on
+    remember, and recall filters that cannot name anything the current policy already excludes.
+    The model is constrained to this schema; is_tighter still makes the final decision."""
+    schema = copy.deepcopy(POLICY_SCHEMA)
+    rule = schema["properties"]["tool_rules"]["items"]
+
+    def variant(tools: list, actions: list) -> dict:
+        out = copy.deepcopy(rule)
+        out["properties"]["tool"]["enum"], out["properties"]["action"]["enum"] = tools, actions
+        return out
+
+    schema["properties"]["tool_rules"]["items"] = {"anyOf": [
+        variant(["remember"], ACTIONS), variant([t for t in TOOLS if t != "remember"], ["allow", "deny"])]}
+    context = schema["properties"]["context_policy"]["properties"]
+    context["recall_status"] = _strings([x for x in STATUSES if x in _recall_set(current, "recall_status", STATUSES)])
+    context["recall_trust"] = _strings([x for x in TRUSTS if x in _recall_set(current, "recall_trust", TRUSTS)])
+    return schema
 
 
 def load_active_policy() -> dict:

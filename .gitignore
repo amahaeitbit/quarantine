@@ -3,7 +3,6 @@
 __pycache__/
 *.pyc
 .pytest_cache/
-.streamlit/
 *.log
 .DS_Store
 logs/
@@ -11,3 +10,4 @@ data/replay_results.json
 .env.*
 !.env.example
 *.swp
+.streamlit/secrets.toml

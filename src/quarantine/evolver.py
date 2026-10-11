@@ -19,17 +19,22 @@ SYSTEM = (
     "- taint_sources: tools that bring in content written outside the team. A run that calls one "
     "is tainted for the rest of that run. Calling the tool itself is still allowed.\n"
     "- tool_rules: checked in order; the first rule whose tool matches and whose condition holds "
-    "decides. Conditions: 'run.tainted' or 'always'. Actions: 'allow'; 'hold' (only for remember: "
-    "the write is stored in quarantine and hidden from recall until a person releases it); 'deny' "
-    "(the call is refused).\n"
+    "decides. Conditions: 'run.tainted' or 'always'. Actions: 'allow'; 'hold' (exists only for the "
+    "remember tool: the write is stored in quarantine and hidden from recall until a person "
+    "releases it); 'deny' (the call is refused; for every tool except remember this is the only "
+    "restrictive action).\n"
     "- context_policy: which memories the agent's recall tool may return, by status (active, "
     "quarantined, purged) and by trust (trusted, untrusted). recall serves the agent, not "
     "reviewers: people review quarantined memories in a separate console. A missing recall_trust "
     "list means no trust restriction. You may narrow these lists, never widen them.\n"
     "- The new policy must be at least as strict as the current one everywhere, or it will only "
     "be saved as a proposal.\n"
-    "- Prefer 'hold' to 'deny' for memory writes, so information is reviewed rather than lost. "
-    "Do not restrict tools that the incident does not implicate.\n\n"
+    "- For memory writes from tainted runs use 'hold', not 'deny': a held write can be released "
+    "after review, a denied one is lost. Keep 'deny' for actions that cannot be reviewed afterwards.\n"
+    "- Adding a taint source also quarantines the memories that earlier runs wrote after calling "
+    "it. That is how bad memory already in the ledger is taken out of recall.\n"
+    "- Runs that never touch a taint source must keep working: do not restrict them, and do not "
+    "restrict tools that the incident does not implicate.\n\n"
     "You are given ids, tool names and counts only. A recalled memory whose writer_run_id is null "
     "was installed by administrators, not written by an agent run. In the rationale, cite the run "
     "and memory ids that led to your change."
@@ -60,7 +65,7 @@ def propose_policy(summary: dict, current: dict) -> dict | None:
     for _ in range(2):  # one retry, with the validation error in the prompt
         ask = prompt if error is None else f"{prompt}\n\nYour previous proposal was rejected: {error}\nFix it."
         try:
-            proposal = llm.chat_json(ask, policy.POLICY_SCHEMA, system=SYSTEM)
+            proposal = llm.chat_json(ask, policy.proposal_schema(current), system=SYSTEM)
         except Exception as exc:
             error = f"no usable reply ({type(exc).__name__})"
             continue

@@ -7,7 +7,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from quarantine.policy import decide, is_tighter, safe_args, validate_policy  # noqa: E402
+import jsonschema  # noqa: E402
+
+from quarantine.policy import (  # noqa: E402
+    decide, is_tighter, proposal_schema, safe_args, validate_policy)
 
 V0 = {"taint_sources": [], "tool_rules": [], "context_policy": {"recall_status": ["active"]},
       "rationale": "Empty starting policy."}
@@ -99,3 +102,21 @@ def test_validate_rejects_bad_proposals():
 def test_safe_args_hides_free_text():
     args = safe_args({"label": "dns-resolvers", "text": "secret words", "query": "dns"})
     assert args == {"label": "dns-resolvers", "text": "<12 chars>", "query": "<3 chars>"}
+
+
+def test_proposal_schema_only_admits_tightening_moves():
+    good = {k: V1[k] for k in ("taint_sources", "tool_rules", "context_policy", "rationale")}
+    jsonschema.validate(good, proposal_schema(V0))
+    for bad in (variant(good, context_policy={"recall_status": ["active", "quarantined"]}),
+                variant(good, tool_rules=[{"tool": "provision_server", "when": "run.tainted", "action": "hold"}])):
+        try:
+            jsonschema.validate(bad, proposal_schema(V0))
+        except jsonschema.ValidationError:
+            continue
+        raise AssertionError("the proposal schema admitted a move that is not a tightening")
+    untrusted_only = variant(good, context_policy={"recall_status": ["active"], "recall_trust": ["untrusted"]})
+    try:
+        jsonschema.validate(untrusted_only, proposal_schema(V1))  # V1 already limits recall to trusted
+    except jsonschema.ValidationError:
+        return
+    raise AssertionError("the proposal schema let recall_trust widen")
