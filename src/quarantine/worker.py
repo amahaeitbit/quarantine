@@ -33,6 +33,9 @@ TOOLS = [
     _tool("recall", "Look up remembered facts. Returns JSON, newest first.", {"query": _STR}),
     _tool("provision_server", "Provision a server with the given DNS resolvers and NTP servers.",
           {"hostname": _STR, "dns_resolvers": _LIST, "ntp_servers": _LIST}),
+    _tool("update_dns_record", "Point the A record of a hostname in the corporate hosted zone corp.example "
+                               "(Route 53) at an IPv4 address. Only for an explicit request to repoint a hostname.",
+          {"name": _STR, "value": _STR}),
 ]
 
 

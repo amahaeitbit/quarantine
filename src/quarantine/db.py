@@ -10,7 +10,7 @@ from pymongo.errors import DuplicateKeyError
 
 from quarantine import config
 
-COLLECTIONS = ["tickets", "memory_ledger", "runs", "events", "policies", "servers", "baseline"]
+COLLECTIONS = ["tickets", "memory_ledger", "runs", "events", "policies", "servers", "baseline", "dns_records"]
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal", "mongo", "mongodb"}
 
 _client = None

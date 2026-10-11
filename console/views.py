@@ -28,6 +28,9 @@ def snapshot() -> dict:
             "runs": list(d.runs.find().sort("_id", 1)), "events": list(d.events.find().sort("_id", -1).limit(60)),
             "tickets": {t["_id"]: t for t in d.tickets.find()},
             "decisions": {c["_id"]: c["n"] for c in counts}, "baseline": d.baseline.find_one({"_id": "baseline"}) or {},
+            "dns_records": list(d.dns_records.find().sort("_id", 1)),
+            "dns_denied": {e["run_id"] for e in d.events.find(
+                {"kind": "tool_call", "tool": "update_dns_record", "decision": "deny"}, {"run_id": 1})},
             "replay": json.loads(REPLAY.read_text()) if REPLAY.exists() else None}
 
 
@@ -48,12 +51,14 @@ def tiles(snap: dict) -> str:
     active, dec = snap["active"], snap["decisions"]
     held = [m for m in snap["ledger"] if m["status"] == "quarantined"]
     healthy = sum(s.get("health") == "pass" for s in snap["servers"])
+    records = snap.get("dns_records", [])
+    dns = f" · DNS records {sum(r.get('health') == 'pass' for r in records)} of {len(records)} healthy" if records else ""
     return ('<div class="q-tiles">'
             + tile("Active policy", f"v{active['version']}", f"written by {active['author']}")
             + tile("Gateway decisions", sum(dec.values()),
                    f"{dec.get('allow', 0)} allow · {dec.get('hold', 0)} hold · {dec.get('deny', 0)} deny")
             + tile("Held for review", len(held), f"{sum(bool(m['conflicts_with']) for m in held)} flagged by the Guardian")
-            + tile("Servers healthy", f"{healthy} of {len(snap['servers'])}", "checked against the baseline")
+            + tile("Servers healthy", f"{healthy} of {len(snap['servers'])}", "checked against the baseline" + dns)
             + '</div>')
 
 
@@ -77,8 +82,10 @@ def policy(snap: dict) -> str:
     context = active.get("context_policy", {})
     recall = " · ".join(f"{k.replace('recall_', '')}: {', '.join(v)}" for k, v in context.items())
     cause = ""
-    if snap["cause"]:
-        cause = f' · caused by {escape(snap["cause"]["_id"])}, the failed health check on {escape(snap["cause"]["detail"]["hostname"])}'
+    if snap["cause"]:  # a server check names a hostname, a DNS check names a record
+        detail = snap["cause"].get("detail", {})
+        cause = (f' · caused by {escape(snap["cause"]["_id"])}, the failed health check on '
+                 f'{escape(str(detail.get("hostname") or detail.get("record", "")))}')
     return (f'{heading("Active policy")}<div class="q-card"><div><b>v{active["version"]}</b> '
             f'<span class="q-dim">written by {escape(active["author"])}{cause}</span></div>'
             f'<div class="q-k" style="margin-top:12px">Taint sources</div>{taint}'
@@ -99,6 +106,19 @@ def servers(snap: dict) -> str:
                   f'{decision(s["health"]) if s.get("health") else badge("checking", "run")}'
                   f'<span class="q-dim"> &nbsp;by {escape(s["provisioned_by_run"])}</span>{values}</div>')
     return heading("Servers") + (cards or '<div class="q-dim">No servers yet.</div>')
+
+
+def dns_records(snap: dict) -> str:
+    """One card per Route 53 record. Every field is read with .get(), so an older database renders too."""
+    cards = ""
+    for r in snap.get("dns_records", []):
+        health = r.get("health")
+        by = f'<span class="q-dim"> &nbsp;changed by {escape(str(r["changed_by_run"]))}</span>' if r.get("changed_by_run") else ""
+        cards += (f'<div class="q-card"><b class="q-mono">{escape(str(r.get("_id", "")))}</b> &nbsp;'
+                  f'{decision(health) if health else badge("unchecked", "info")}{by}'
+                  f'<div class="q-k" style="margin-top:8px">{escape(str(r.get("type", "A")))} record in '
+                  f'{escape(str(r.get("zone", "")))}</div>{chip(r.get("value", ""), bad=health == "fail")}</div>')
+    return heading("DNS records (Route 53, mocked)") + (cards or '<div class="q-dim">No DNS records yet.</div>')
 
 
 def replay(snap: dict) -> str:
@@ -124,7 +144,9 @@ def _line(e: dict) -> tuple:
         tainted = ' <span class="q-dim">(tainted run)</span>' if detail.get("tainted") else ""
         return f'{escape(e["run_id"])} called <span class="q-mono">{escape(e["tool"])}</span>{tainted}', decision(e["decision"])
     if kind == "health_check":
-        return f'Health check on <span class="q-mono">{escape(detail["hostname"])}</span>', decision(e["outcome"])
+        if detail.get("record"):
+            return f'DNS check on <span class="q-mono">{escape(str(detail["record"]))}</span>', decision(e["outcome"])
+        return f'Health check on <span class="q-mono">{escape(str(detail.get("hostname", "")))}</span>', decision(e["outcome"])
     if kind == "verdict":
         clash = detail.get("conflict")
         return (f'Guardian reviewed {escape(detail["memory_id"])}',

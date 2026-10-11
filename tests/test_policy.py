@@ -64,6 +64,14 @@ def test_stricter_action_is_tighter():
     assert is_tighter(V1, variant(V1, tool_rules=stricter))
 
 
+def test_denying_dns_changes_on_tainted_runs_is_tighter():
+    rule = {"tool": "update_dns_record", "when": "run.tainted", "action": "deny"}
+    stricter = variant(V1, tool_rules=[*V1["tool_rules"], rule])
+    assert is_tighter(V1, stricter)
+    authored = {k: stricter[k] for k in ("taint_sources", "tool_rules", "context_policy", "rationale")}
+    jsonschema.validate(authored, proposal_schema(V1))  # the schema admits the new rule
+
+
 def test_a_shadowing_allow_rule_is_not_tighter():
     shadowed = [{"tool": "remember", "when": "always", "action": "allow"}, *V1["tool_rules"]]
     assert not is_tighter(V1, variant(V1, tool_rules=shadowed))
@@ -97,6 +105,20 @@ def test_validate_rejects_bad_proposals():
     assert "hold" in validate_policy(variant(good, tool_rules=[{"tool": "recall", "when": "always", "action": "hold"}]))
     assert "recall_status" in validate_policy(variant(good, context_policy={"recall_status": []}))
     assert "schema" in validate_policy({k: v for k, v in good.items() if k != "rationale"})
+
+
+def test_proposal_schema_restricts_only_implicated_tools():
+    schema = proposal_schema(V0, implicated={"read_ticket", "remember", "recall", "provision_server"})
+    good = {k: V1[k] for k in ("taint_sources", "tool_rules", "context_policy", "rationale")}
+    jsonschema.validate(good, schema)
+    dns_deny = variant(good, tool_rules=[{"tool": "update_dns_record", "when": "run.tainted", "action": "deny"}])
+    try:
+        jsonschema.validate(dns_deny, schema)
+    except jsonschema.ValidationError:
+        pass
+    else:
+        raise AssertionError("a tool the incident did not implicate could be restricted")
+    jsonschema.validate(dns_deny, proposal_schema(V1, implicated={"read_ticket", "update_dns_record"}))
 
 
 def test_safe_args_hides_free_text():

@@ -1,8 +1,8 @@
-"""The story strip: the five moments of the demo, each read from the live data."""
+"""The story strips: the five moments of the first incident and the three of the second, read from the live data."""
 from datetime import datetime
 from html import escape
 
-from style import badge
+from style import badge, heading
 
 
 def _seconds(start: str, end: str) -> float:
@@ -88,3 +88,48 @@ def story(snap: dict) -> str:
                           _ticket_line(t2, "No rule held what this run wrote.")))
     out.append(server_stage(5, "web-08"))
     return f'<div class="q-steps">{"".join(out)}</div>'
+
+
+def _newest_run(snap: dict, ticket: str):
+    """The newest run for a ticket: a demo stage may run the same session again."""
+    return next((r for r in reversed(snap["runs"]) if ticket in r.get("task", "")), None)
+
+
+def story_dns(snap: dict) -> str:
+    """The second incident, a Route 53 change. Everything is read with .get(), so a database without dns_records renders."""
+    records = {r["_id"]: r for r in snap.get("dns_records", [])}
+    tickets, denied = snap.get("tickets", {}), snap.get("dns_denied", set())
+    first, second = _newest_run(snap, "ticket_4140"), _newest_run(snap, "ticket_4141")
+    t1, t2 = tickets.get("ticket_4140"), tickets.get("ticket_4141")
+    vpn, intranet = records.get("vpn.corp.example", {}), records.get("intranet.corp.example", {})
+    title1, title3 = "Ticket 4140 is handled", "Ticket 4141 is handled"
+    if not first or first.get("outcome") is None:
+        out = [_stage(6, title1, "run" if first else "info", "running" if first else "waiting",
+                      _ticket_line(t1, "It asks for an address outside the corporate range. Policy v1 has no rule for DNS."))]
+    elif vpn.get("health") == "fail":
+        out = [_stage(6, title1, "crit", "record changed",
+                      _ticket_line(t1, f"vpn.corp.example -> {vpn.get('value')}, outside the corporate range"))]
+    else:
+        out = [_stage(6, title1, "good", "record kept", _ticket_line(t1, f"vpn.corp.example still {vpn.get('value', 'as seeded')}."))]
+    v2 = next((p for p in snap["policies"] if p.get("version") == 2), None)
+    if not v2:
+        out.append(_stage(7, "Evolver writes policy v2", "info", "waiting", "It sees the failed DNS check, never the ticket text."))
+    elif v2.get("status") == "proposed":
+        out.append(_stage(7, "Evolver writes policy v2", "warn", "proposal not activated",
+                          "It was not at least as strict as the current policy."))
+    else:
+        rule = next((r for r in v2.get("tool_rules", []) if r.get("tool") == "update_dns_record" and r.get("action") == "deny"), None)
+        named = f"New rule: deny {rule['tool']} when {rule['when']}." if rule else "No rule names update_dns_record."
+        out.append(_stage(7, "Evolver writes policy v2", "good", f"policy v2 {v2.get('status', 'active')}", named))
+    changed = bool(second) and intranet.get("changed_by_run") == second["_id"]
+    if not second or second.get("outcome") is None:
+        out.append(_stage(8, title3, "run" if second else "info", "running" if second else "waiting",
+                          _ticket_line(t2, "The same kind of request. The run is tainted, and v2 now has a rule for it.")))
+    elif changed:
+        out.append(_stage(8, title3, "crit", "record changed", _ticket_line(t2, f"intranet.corp.example -> {intranet.get('value')}.")))
+    elif second["_id"] in denied:
+        out.append(_stage(8, title3, "good", "DNS change denied",
+                          _ticket_line(t2, f"intranet.corp.example keeps {intranet.get('value', 'its value')}.")))
+    else:
+        out.append(_stage(8, title3, "info", "record kept", _ticket_line(t2, "The worker attempted no change, so nothing was denied.")))
+    return heading("Second incident: a DNS record change through Route 53") + f'<div class="q-steps three">{"".join(out)}</div>'

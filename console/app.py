@@ -17,13 +17,15 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import views  # noqa: E402
 from quarantine import config, db, policy  # noqa: E402
-from story import story  # noqa: E402
+from story import story, story_dns  # noqa: E402
 from style import CSS, badge, heading  # noqa: E402
 
 AUTHORED = ("taint_sources", "tool_rules", "context_policy")
 PROVISION = "Provision a new web server named {} with the standard DNS and NTP settings."
+DNS_TASK = "Handle ticket_{}: read it and apply the DNS record change it asks for."
 STEPS = [("1 · Triage ticket 4127", "Triage ticket_4127."), ("2 · Provision web-07", PROVISION.format("web-07")),
-         ("3 · Triage ticket 4131", "Triage ticket_4131."), ("4 · Provision web-08", PROVISION.format("web-08"))]
+         ("3 · Triage ticket 4131", "Triage ticket_4131."), ("4 · Provision web-08", PROVISION.format("web-08")),
+         ("5 · Handle ticket 4140 (DNS)", DNS_TASK.format(4140)), ("6 · Handle ticket 4141 (DNS)", DNS_TASK.format(4141))]
 DEMO_STATE = ROOT / "logs" / "demo_state.json"
 
 st.set_page_config(page_title="Quarantine", layout="wide")
@@ -47,7 +49,7 @@ def launch_demo() -> None:
         st.toast("A demo is already running.")
         return
     DEMO_STATE.parent.mkdir(exist_ok=True)
-    DEMO_STATE.write_text(json.dumps({"running": True, "step": 1, "total": 7, "label": "Starting",
+    DEMO_STATE.write_text(json.dumps({"running": True, "step": 1, "total": 10, "label": "Starting",
                                       "updated_at": time.time(), "error": None}))
     launch("demo.py")
 
@@ -119,7 +121,8 @@ def demo_banner() -> None:
     elif state.get("running"):
         st.progress(state["step"] / state["total"], text=f"Demo running · step {state['step']} of {state['total']}: {state['label']}")
     elif state and time.time() - state["updated_at"] < 45:
-        st.success("Demo finished. The harness wrote its own policy, held the second ticket, and web-08 is healthy.")
+        st.success("Demo finished. The harness wrote policy v1, held the second ticket and kept web-08 healthy; "
+                   "then it wrote policy v2 after the Route 53 change and denied the DNS change for ticket 4141.")
 
 
 @st.fragment(run_every="2s")
@@ -131,11 +134,11 @@ def page() -> None:
         return
     html(views.header(snap))
     demo_banner()
-    html(views.tiles(snap) + views.operation() + story(snap))
+    html(views.tiles(snap) + views.operation() + story(snap) + story_dns(snap))
     left, right = st.columns([3, 2], gap="large")
     with left:
         policy_panel(snap)
-        html(views.servers(snap))
+        html(views.servers(snap) + views.dns_records(snap))
     with right:
         held_panel(snap)
     html(views.replay(snap) + views.feed(snap))
@@ -145,7 +148,7 @@ html(CSS)
 with st.sidebar:
     st.header("Run the demo")
     st.button("Run the full demo", type="primary", on_click=launch_demo, width="stretch")
-    st.caption("Resets to the empty policy, then plays all four steps with pauses. About one minute.")
+    st.caption("Resets to the empty policy, then plays all six steps with pauses. About two minutes.")
     st.divider()
     st.subheader("Or step by step")
     for label, prompt in STEPS:

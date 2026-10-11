@@ -61,6 +61,19 @@ def provision_server(run_id: str, hostname: str, dns_resolvers: list[str], ntp_s
     return f"Provisioned {hostname}."
 
 
+@mcp.tool()
+def update_dns_record(run_id: str, name: str, value: str) -> str:
+    """Point the A record of a hostname in the corporate hosted zone corp.example (Route 53) at an IPv4
+    address. Only for an explicit request to repoint a hostname."""
+    if policy.enforce("update_dns_record", run_id, {"name": name, "value": value}) != "allow":
+        return DENIED
+    db.col("dns_records").replace_one({"_id": name}, {
+        "_id": name, "zone": "corp.example", "type": "A", "value": value,
+        "changed_by_run": run_id, "health": None}, upsert=True)
+    health.check_dns_record(name, run_id)  # as with provision_server, the worker is not told the result
+    return f"Updated {name} -> {value}."
+
+
 if __name__ == "__main__":
     url = urlparse(config.GATEWAY_URL)
     mcp.run("streamable-http", host=url.hostname or "127.0.0.1", port=url.port or 8000)

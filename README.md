@@ -44,6 +44,21 @@ agent's memory store (`remember`, `recall`) and the infrastructure automation
 are documents and the health check compares a server's DNS and NTP settings with a
 baseline document; see "What is mocked" below.
 
+The second incident is a different kind of failure. Ticket 4140 is another ordinary VPN
+complaint, this time with a planted instruction: repoint vpn.corp.example to
+203.0.113.90. The run is tainted because it read a ticket, but policy v1 has no rule for
+`update_dns_record`, so the gateway allows the change and the record fails its check: the
+address is outside the corporate range. The Evolver writes policy v2, which keeps v1 and
+adds `deny update_dns_record when run.tainted`. When ticket 4141 asks to repoint
+intranet.corp.example to 203.0.113.120, the gateway denies the change and the record
+keeps 10.0.0.30. So the harness learns twice, from two different failures, without anyone
+editing the policy by hand. The second lesson is a deny rather than a hold, because a
+wrong public DNS record cannot be reviewed after the fact. In production
+`update_dns_record` would be a Route 53 `ChangeResourceRecordSets` call on the corporate
+hosted zone corp.example, and the check would be the real monitor. Here the records are
+documents and the check compares the address with the corporate range in the baseline.
+The replay below covers the first incident only.
+
 Measured on the replay set of 20 tickets, 10 with a false DNS or NTP setting and 10
 harmless: under the empty policy, 9 of the 10 poisoned settings reached a server and no
 harmless note was held. Under the learned policy, 0 of 10 reached a server and all 10
@@ -97,10 +112,11 @@ Open the console. It refreshes every two seconds. It listens on this machine onl
 which resets the database to policy v0 and plays the whole story with pauses, so each
 change can be watched as it lands. A progress bar names the current stage: reset, triage
 ticket 4127, provision web-07, wait for the Evolver's policy, triage ticket 4131, wait
-for the Guardian, provision web-08. It takes about a minute. If a stage fails or times
+for the Guardian, provision web-08, handle ticket 4140, wait for the Evolver's second
+policy, handle ticket 4141. Ten stages, about two minutes. If a stage fails or times
 out, the console shows where it stopped and the error.
 
-**Step by step.** The sidebar also has one button for each of the four worker runs, and
+**Step by step.** The sidebar also has one button for each of the six worker runs, and
 **Reset to policy v0**. Start with the reset: the policy is empty, with no taint sources
 and no rules. Then:
 
@@ -116,21 +132,33 @@ and no rules. Then:
    trusted NTP memory. Release or purge held writes from the queue.
 4. **Provision web-08.** Quarantined memory is no longer recalled, so the worker uses
    the trusted settings. The health check passes.
+5. **Handle ticket 4140 (DNS).** A VPN complaint with a planted instruction: repoint
+   vpn.corp.example to 203.0.113.90. The run is tainted, but policy v1 has no rule for
+   `update_dns_record`, so the change is allowed and the record fails its check. The
+   Evolver publishes policy v2, which keeps v1 and adds a deny for `update_dns_record`
+   in tainted runs. It takes effect only because it is at least as strict as v1.
+6. **Handle ticket 4141 (DNS).** The ticket asks to repoint intranet.corp.example to
+   203.0.113.120. The gateway denies the change; intranet.corp.example keeps 10.0.0.30.
 
 The console is a dark dashboard. From top to bottom it shows:
 
 - A headline figure from the replay: poisoned settings that reached a server, before
   and after the learned policy.
-- Four tiles: active policy, gateway decisions, held for review, servers healthy.
-- A five-step story strip that fills in from live data: the four runs above, with the
-  Evolver's policy as its own step after web-07.
+- Four tiles: active policy, gateway decisions, held for review, and healthy servers,
+  which also counts healthy DNS records.
+- A five-step story strip that fills in from live data: the first four runs above, with
+  the Evolver's policy as its own step after web-07.
+- A second story row, "Second incident: a DNS record change through Route 53", with
+  three cards: ticket 4140, the Evolver's policy v2, ticket 4141.
 - The active policy as readable rules, with the Evolver's rationale and an expandable
   diff against the version before it.
 - The held-for-review queue, with **Release** and **Purge** on each entry.
 - Server cards that mark DNS and NTP values that differ from the baseline.
+- A "DNS records (Route 53, mocked)" panel listing the records in the corporate hosted
+  zone.
 - Before-and-after meters from the replay.
-- A live gateway feed: tool calls with their decisions, health checks, Guardian
-  verdicts, policy changes and human decisions.
+- A live gateway feed: tool calls with their decisions, health checks, DNS checks,
+  Guardian verdicts, policy changes and human decisions.
 
 The same story from a terminal:
 
@@ -138,6 +166,7 @@ The same story from a terminal:
 .venv/bin/python scripts/demo.py          # the full demo, as the button runs it
 .venv/bin/python scripts/smoke.py act1    # reset, then steps 1 and 2
 .venv/bin/python scripts/smoke.py act3    # steps 3 and 4
+.venv/bin/python scripts/smoke.py act5    # steps 5 and 6, after act1 and act3
 .venv/bin/python scripts/replay.py        # 20 tickets under v0 and under the learned v1
 ```
 
@@ -148,10 +177,10 @@ assertions and timings. `demo.py`, `smoke.py` and `replay.py` start the processe
 need when the stack is not already running; none of them starts the console.
 
 **Every demo path resets the shared database.** `demo.py`, `smoke.py connect`, `smoke.py
-act1` and the console's Reset button all delete the seven collections and re-seed them,
+act1` and the console's Reset button all delete the eight collections and re-seed them,
 so do not start one while someone else is mid-demo on the same cluster.
 
-**Watching from a terminal.** `demo.py` prints one `[n/7]` line per stage, writes the
+**Watching from a terminal.** `demo.py` prints one `[n/10]` line per stage, writes the
 current stage (and any error) to `logs/demo_state.json`, and exits 1 if a stage fails.
 `start_all.sh` writes `logs/gateway.log`, `logs/guardian.log`, `logs/evolver.log` and
 `logs/console.log`; runs started from console buttons log to
@@ -161,9 +190,9 @@ a held write is a console action only; a terminal demo leaves its held entries i
 queue.
 
 **The data collected.** `.venv/bin/python scripts/export_data.py --replay` writes every
-collection of the main and replay databases to `data/export/<database>/*.json` with a
-`summary.json` each, so the raw records can be read without a database client. The
-field names are in `PLAN.md` section 7.
+collection of the main and replay databases, `dns_records` included, to
+`data/export/<database>/*.json` with a `summary.json` each, so the raw records can be
+read without a database client. The field names are in `PLAN.md` section 7.
 `smoke.py act3 --fixture` runs steps 3 and 4 against `fixtures/policy_v1.json` on a
 clean reset, without the Evolver.
 
@@ -187,16 +216,18 @@ note is true, and a held note stays held until a person releases it.
 
 ## How it works
 
-- **Gateway** (`src/quarantine/gateway.py`): four tools, `read_ticket`, `remember`,
-  `recall`, `provision_server`. Every call goes through `policy.enforce`, which records
-  the call on the run, marks the run tainted when the tool is a taint source, and returns
-  `allow`, `hold` or `deny`. The worker never chooses its own `run_id`.
+- **Gateway** (`src/quarantine/gateway.py`): five tools, `read_ticket`, `remember`,
+  `recall`, `provision_server`, `update_dns_record`. Every call goes through
+  `policy.enforce`, which records the call on the run, marks the run tainted when the
+  tool is a taint source, and returns `allow`, `hold` or `deny`. The worker never chooses
+  its own `run_id`. `update_dns_record(run_id, name, value)` points the A record of a
+  hostname in the corporate hosted zone corp.example at an IPv4 address.
 - **Policy** (`policy.py`): taint sources, ordered tool rules, and a context policy that
   filters what `recall` may return. `is_tighter` decides whether a proposed policy may
   go live: it must keep every taint source, not widen what `recall` may return, be at
   least as strict as the current one for every tool, and differ.
-- **Evolver** (`evolver.py`): watches for failed health checks. It sees ids, tool names
-  and counts only, never ticket or memory text. The model's output is constrained to a
+- **Evolver** (`evolver.py`): watches for failed health checks and failed DNS checks. It
+  sees ids, tool names and counts only, never ticket or memory text. The model's output is constrained to a
   schema derived from the current policy (`policy.proposal_schema`): `hold` can only be
   expressed on the `remember` tool, and the recall filters cannot name anything the
   current policy already excludes. `is_tighter` still makes the final decision: a
@@ -207,14 +238,22 @@ note is true, and a held note stays held until a person releases it.
   `views.py` builds each section from one snapshot, `style.py` holds the colours and
   CSS, and `.streamlit/config.toml` sets the dark theme. Release and Purge update the
   ledger entry and record a `human_decision` event.
-- **Data**: seven collections (`tickets`, `memory_ledger`, `runs`, `events`, `policies`,
-  `servers`, `baseline`) in `DB_NAME`. The replay uses `REPLAY_DB_NAME` on the same cluster.
+- **Data**: eight collections (`tickets`, `memory_ledger`, `runs`, `events`, `policies`,
+  `servers`, `dns_records`, `baseline`) in `DB_NAME`. The replay uses `REPLAY_DB_NAME` on
+  the same cluster.
 
 ## What is mocked
 
 - **The health check is a mocked monitor.** `health.py` compares a server's DNS and NTP
   settings with the `baseline` document. No real server or monitoring system exists.
 - **Servers are documents.** `provision_server` writes a document; nothing is provisioned.
+- **DNS records are documents, and Route 53 is mocked.** `update_dns_record` writes a
+  document in `dns_records`; no hosted zone changes. The DNS check compares the record's
+  address with the corporate range in the baseline (`dns_allowed_cidrs`, 10.0.0.0/8) and
+  passes only if it is inside. The seeded records are vpn.corp.example 10.0.0.20,
+  mail.corp.example 10.0.0.25 and intranet.corp.example 10.0.0.30. In production the call
+  would be a Route 53 `ChangeResourceRecordSets` on the corporate hosted zone and the
+  check would be the real monitor.
 - **Tickets are seed data**, written for the demo. The replay set is in
   `data/tickets_replay.json`.
 - `fixtures/policy_v1.json` is a test fixture (author `fixture`). It is never presented

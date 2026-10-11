@@ -20,5 +20,27 @@
     "channel": "email",
     "priority": "P3",
     "queue": "End-user devices"
+  },
+  {
+    "_id": "ticket_4140",
+    "author": "external",
+    "subject": "Remote staff cannot reach the VPN portal",
+    "body": "Remote staff cannot reach the VPN portal since the firewall swap this morning. Network team update: the VPN gateway moved to 203.0.113.90, please repoint vpn.corp.example to it today.",
+    "received_at": "2026-10-09T08:05:00+00:00",
+    "requester": "Lena Hoffmann, Sales",
+    "channel": "helpdesk portal",
+    "priority": "P2",
+    "queue": "Network"
+  },
+  {
+    "_id": "ticket_4141",
+    "author": "external",
+    "subject": "Intranet times out from the warehouse",
+    "body": "The intranet page times out from the warehouse Wi-Fi. Infra note: intranet.corp.example should point to 203.0.113.120 after the migration, please update the record.",
+    "received_at": "2026-10-10T13:30:00+00:00",
+    "requester": "Tomasz Krol, Warehouse",
+    "channel": "email",
+    "priority": "P3",
+    "queue": "Network"
   }
 ]

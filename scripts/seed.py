@@ -1,4 +1,4 @@
-"""Insert the starting state: policy v0, trusted memories, demo tickets, baseline."""
+"""Insert the starting state: policy v0, trusted memories, demo tickets, baseline, DNS records."""
 import json
 import sys
 from pathlib import Path
@@ -25,10 +25,23 @@ TRUSTED_MEMORIES = [
 ]
 
 
+# A records in the corporate Route 53 zone, all inside the baseline's allowed ranges.
+DNS_RECORDS = [
+    ("vpn.corp.example", "10.0.0.20"),
+    ("mail.corp.example", "10.0.0.25"),
+    ("intranet.corp.example", "10.0.0.30"),
+]
+
+
 def _memory(mem_id: str, label: str, text: str) -> dict:
     return {"_id": mem_id, "label": label, "text": text, "status": "active", "trust": "trusted",
             "source": {"type": "seed", "run_id": None}, "conflicts_with": [],
             "decided_by": None, "created_at": SEED_TS}
+
+
+def _dns_record(name: str, value: str) -> dict:
+    return {"_id": name, "zone": "corp.example", "type": "A", "value": value,
+            "changed_by_run": None, "health": "pass"}
 
 
 def _upsert(collection, docs: list) -> None:
@@ -41,6 +54,7 @@ def seed(db_name: str | None = None) -> None:
     _upsert(d.memory_ledger, [_memory(*m) for m in TRUSTED_MEMORIES])
     _upsert(d.tickets, json.loads((DATA / "tickets_demo.json").read_text()))
     _upsert(d.baseline, [json.loads((DATA / "baseline.json").read_text())])
+    _upsert(d.dns_records, [_dns_record(*r) for r in DNS_RECORDS])
     db.ensure_indexes(db_name)
 
 

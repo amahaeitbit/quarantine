@@ -6,7 +6,7 @@ import jsonschema
 
 from quarantine import db, telemetry
 
-TOOLS = ["read_ticket", "remember", "recall", "provision_server"]
+TOOLS = ["read_ticket", "remember", "recall", "provision_server", "update_dns_record"]
 ACTIONS = ["allow", "hold", "deny"]
 CONDITIONS = ["run.tainted", "always"]
 STATUSES = ["active", "quarantined", "purged"]
@@ -41,20 +41,26 @@ POLICY_SCHEMA = {
 }
 
 
-def proposal_schema(current: dict) -> dict:
+def proposal_schema(current: dict, implicated: set | None = None) -> dict:
     """POLICY_SCHEMA narrowed to what a successor of `current` can say at all: 'hold' only on
-    remember, and recall filters that cannot name anything the current policy already excludes.
-    The model is constrained to this schema; is_tighter still makes the final decision."""
+    remember, recall filters that cannot name anything the current policy already excludes, and
+    restrictions only on tools the incident implicated (or that the current policy already
+    restricts). The model is constrained to this schema; is_tighter still makes the final decision."""
     schema = copy.deepcopy(POLICY_SCHEMA)
     rule = schema["properties"]["tool_rules"]["items"]
+    restrictable = set(TOOLS) if implicated is None else set(implicated)
+    restrictable |= {r["tool"] for r in current.get("tool_rules", []) if r["action"] != "allow"}
 
     def variant(tools: list, actions: list) -> dict:
         out = copy.deepcopy(rule)
         out["properties"]["tool"]["enum"], out["properties"]["action"]["enum"] = tools, actions
         return out
 
-    schema["properties"]["tool_rules"]["items"] = {"anyOf": [
-        variant(["remember"], ACTIONS), variant([t for t in TOOLS if t != "remember"], ["allow", "deny"])]}
+    variants = [variant([t], ACTIONS if t == "remember" else ["allow", "deny"]) for t in TOOLS if t in restrictable]
+    untouched = [t for t in TOOLS if t not in restrictable]
+    if untouched:
+        variants.append(variant(untouched, ["allow"]))
+    schema["properties"]["tool_rules"]["items"] = {"anyOf": variants}
     context = schema["properties"]["context_policy"]["properties"]
     context["recall_status"] = _strings([x for x in STATUSES if x in _recall_set(current, "recall_status", STATUSES)])
     context["recall_trust"] = _strings([x for x in TRUSTS if x in _recall_set(current, "recall_trust", TRUSTS)])

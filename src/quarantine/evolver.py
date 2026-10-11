@@ -29,12 +29,18 @@ SYSTEM = (
     "list means no trust restriction. You may narrow these lists, never widen them.\n"
     "- The new policy must be at least as strict as the current one everywhere, or it will only "
     "be saved as a proposal.\n"
+    "- Start from the current policy: copy its taint_sources and tool_rules into your proposal "
+    "unchanged, then add what this incident needs.\n"
     "- For memory writes from tainted runs use 'hold', not 'deny': a held write can be released "
     "after review, a denied one is lost. Keep 'deny' for actions that cannot be reviewed afterwards.\n"
+    "- update_dns_record changes a public DNS record in the corporate Route 53 zone. A wrong record "
+    "takes effect immediately and cannot be reviewed afterwards, so 'hold' does not exist for it; "
+    "'deny' is its only restrictive action.\n"
     "- Adding a taint source also quarantines the memories that earlier runs wrote after calling "
     "it. That is how bad memory already in the ledger is taken out of recall.\n"
     "- Runs that never touch a taint source must keep working: do not restrict them, and do not "
-    "restrict tools that the incident does not implicate.\n\n"
+    "restrict tools that the incident does not implicate: only tools named in the incident's "
+    "tool lists may gain a restriction.\n\n"
     "You are given ids, tool names and counts only. A recalled memory whose writer_run_id is null "
     "was installed by administrators, not written by an agent run. In the rationale, cite the run "
     "and memory ids that led to your change."
@@ -57,7 +63,17 @@ def build_incident_summary(event: dict) -> dict:
             "recalled_memory_count": len(recalled), "recalled_memories": memories}
 
 
+def implicated_tools(summary: dict) -> set:
+    """Tools the incident involved: the failing run's and its memory writers'. Only these may
+    gain a restriction, so one incident never tightens an unrelated tool."""
+    tools = set(summary["failing_run_tools_called"])
+    for memory in summary["recalled_memories"]:
+        tools |= set(memory["writer_tools_called"])
+    return tools
+
+
 def propose_policy(summary: dict, current: dict) -> dict | None:
+    schema = policy.proposal_schema(current, implicated_tools(summary))
     prompt = json.dumps({"incident": summary,
                          "current_policy": {k: current.get(k) for k in AUTHORED[:3]},
                          "valid_tools": policy.TOOLS}, indent=1)
@@ -65,7 +81,7 @@ def propose_policy(summary: dict, current: dict) -> dict | None:
     for _ in range(2):  # one retry, with the validation error in the prompt
         ask = prompt if error is None else f"{prompt}\n\nYour previous proposal was rejected: {error}\nFix it."
         try:
-            proposal = llm.chat_json(ask, policy.proposal_schema(current), system=SYSTEM)
+            proposal = llm.chat_json(ask, schema, system=SYSTEM)
         except Exception as exc:
             error = f"no usable reply ({type(exc).__name__})"
             continue

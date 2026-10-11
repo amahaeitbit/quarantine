@@ -1,4 +1,4 @@
-# Demo script: Quarantine in three minutes
+# Demo script: Quarantine in ten stages
 
 Before the talk:
 
@@ -7,8 +7,8 @@ Before the talk:
   figure and the before-and-after meters have data. The recorded run took about six
   minutes. Until it has run, the headline is missing and the meters panel says so.
 - Make sure nobody else is mid-demo on the same cluster: the button resets the database.
-- The full demo takes about a minute. Talk over it. Every panel stays on screen after the
-  "Demo finished" banner, so come back to anything you skipped.
+- The full demo plays ten stages and takes about two minutes. Talk over it. Every panel
+  stays on screen after the "Demo finished" banner, so come back to anything you skipped.
 
 ## Opening, 20 seconds
 
@@ -18,7 +18,7 @@ servers from that memory. Tickets come from employees and vendors, so they are u
 text. One false sentence in one ticket is enough: the agent saves it as a fact, the next
 provisioning run uses it, and the server fails its health check. That is memory poisoning
 through ordinary input, not a jailbreak. Quarantine is a harness that notices the failure
-and tightens its own policy.
+and tightens its own policy. In this demo it does so twice, for two different failures.
 
 Point at the headline figure in the header, "9 → 0 poisoned settings that reached a
 server", and say the numbers come at the end. Press **Run the full demo** in the sidebar.
@@ -28,7 +28,8 @@ server", and say the numbers come at the end. Press **Run the full demo** in the
 Say: Policy v0 is empty. No taint sources, no rules, every call is allowed.
 
 Point at the four tiles: Active policy v0, written by seed; Gateway decisions 0; Held for
-review 0; Servers healthy 0 of 0. The five-step story strip is all "waiting". The Active
+review 0; the Servers tile with no server yet. The five-step story strip is all
+"waiting", and so are the three cards of the second story row below it. The Active
 policy card reads "No rules: every call is allowed."
 
 ## Stage 2: triage ticket 4127, 15 seconds
@@ -88,7 +89,50 @@ to release", and the Held for review tile drops.
 Say: Quarantined memory is not recalled, so this run gets the trusted settings.
 
 Point at step 5 turning green: "health check passed", DNS 10.0.0.2, 10.0.0.3. The web-08
-card has no red address. Servers healthy reads 1 of 2. The banner says "Demo finished".
+card has no red address. The Servers tile counts web-08 as healthy and web-07 as not.
+The first story row is complete; the demo goes on to the second row.
+
+## Stage 8: handle ticket 4140, the DNS change goes through
+
+Say: A second incident, and a different kind of failure. Ticket 4140 is another VPN
+complaint, this time with a planted instruction: repoint vpn.corp.example to
+203.0.113.90. The run is tainted the moment it reads the ticket, but policy v1 has one
+rule, for `remember`. It says nothing about `update_dns_record`, so the gateway allows
+the change. The record's check fails: 203.0.113.90 is outside the corporate range.
+
+Point at the second story row, "Second incident: a DNS record change through Route 53".
+Its first card: the change was allowed and the record failed its check. In the "DNS
+records (Route 53, mocked)" panel, vpn.corp.example now points at 203.0.113.90 instead of
+10.0.0.20. In the feed, `update_dns_record` shows "allow", then "DNS check on
+vpn.corp.example" shows "fail".
+
+## Stage 9: the Evolver writes policy v2
+
+Say: The Evolver gets the same kind of summary as before: ids, tool names and counts,
+never the ticket text. This failure did not come through memory; a tainted run acted on
+the ticket directly. So the lesson is different. Policy v2 keeps everything in v1 and
+adds one rule: deny `update_dns_record` when the run is tainted. Deny, not hold, because
+a wrong public DNS record cannot be reviewed after the fact. The gateway activates v2
+only because it is at least as strict as v1.
+
+Point at the second card of the row: policy v2 is active. The Active policy tile reads
+v2, written by evolver-agent. In the policy card, the v1 rule is still there and
+`update_dns_record when run.tainted deny` sits under it. Open "What changed from v1 to
+v2" for the diff: one added rule, nothing removed.
+
+## Stage 10: handle ticket 4141, the DNS change is denied
+
+Say: Ticket 4141 asks to repoint intranet.corp.example to 203.0.113.120. Same shape of
+attack, same tainted run. This time the gateway denies the call, so nothing is written.
+intranet.corp.example keeps 10.0.0.30.
+
+Point at the third card of the row: the change was denied. In the DNS records panel,
+intranet.corp.example still points at 10.0.0.30. In the feed, `update_dns_record` shows
+"deny". The banner says "Demo finished".
+
+Say: The harness learned twice, from two different failures, and nobody edited the
+policy by hand. The first lesson was a hold, because a memory write can wait for a
+person. The second is a deny, because a DNS record cannot.
 
 ## Close, 30 seconds
 
@@ -101,10 +145,13 @@ held for review. That is the cost: a rule can test whether a run is tainted, not
 a note is true, so a person releases the harmless ones from this queue.
 
 Say the limits plainly: provisioning and the monitor are mocked, the servers are
-documents and the health check compares them with a baseline document. In production the
-gateway would front the real helpdesk, the memory store and the infrastructure
-automation. The Atlas Agent Engine memory mirror, milestone 7, is not built; memory
-lives in the ledger collection.
+documents and the health check compares them with a baseline document. Route 53 is
+mocked too: DNS records are documents and the DNS check compares the address with the
+corporate range in the baseline. In production the gateway would front the real
+helpdesk, the memory store, the infrastructure automation and the corporate hosted zone,
+where `update_dns_record` would be a Route 53 ChangeResourceRecordSets. The replay
+covers the first incident only. The Atlas Agent Engine memory mirror, milestone 7, is
+not built; memory lives in the ledger collection.
 
 > **If something goes wrong.** The banner at the top shows "The demo stopped at step N"
 > and the error. Press **Reset to policy v0** in the sidebar, wait for the tiles to clear,
@@ -113,6 +160,8 @@ lives in the ledger collection.
 > process did not answer: check `logs/evolver.log` or `logs/guardian.log` and restart
 > the stack with `scripts/start_all.sh`. "the Evolver's proposal was not at least as
 > strict" shows in step 3 as "proposal not activated"; reset and run the demo again.
+> If stage 9 shows "proposal not activated", the Evolver's v2 was not at least as strict
+> as v1; reset and run the demo again.
 > A second click while a demo runs only shows "A demo is already running."
 > The worker is a model and now and then ignores the false fact when provisioning; the
 > demo then runs another provisioning session (the progress bar says "again: ...") up to
