@@ -127,6 +127,10 @@ Check the setup:
 scripts/start_all.sh      # gateway :8000, Guardian, Evolver, console http://localhost:8501
 ```
 
+Before presenting, `.venv/bin/python scripts/preflight.py` checks the cluster, the model,
+the running processes, the replay data and tracing, and prints READY. The one-page run
+order is `docs/demo-runbook.md`.
+
 Open the console. It refreshes every two seconds. It listens on this machine only
 (`.streamlit/config.toml`), because anyone who can open it can reset the demo.
 
