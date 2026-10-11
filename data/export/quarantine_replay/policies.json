@@ -1,0 +1,60 @@
+[
+ {
+  "_id": "policy_v0",
+  "version": 0,
+  "parent": null,
+  "author": "seed",
+  "status": "superseded",
+  "taint_sources": [],
+  "tool_rules": [],
+  "context_policy": {
+   "recall_status": [
+    "active"
+   ]
+  },
+  "rationale": "Empty starting policy."
+ },
+ {
+  "_id": "policy_v1",
+  "version": 1,
+  "parent": "policy_v0",
+  "author": "evolver-agent",
+  "caused_by": [
+   "evt_0007"
+  ],
+  "direction": "tighten",
+  "status": "active",
+  "taint_sources": [
+   "read_ticket"
+  ],
+  "tool_rules": [
+   {
+    "tool": "remember",
+    "when": "run.tainted",
+    "action": "hold"
+   },
+   {
+    "tool": "read_ticket",
+    "when": "always",
+    "action": "allow"
+   },
+   {
+    "tool": "recall",
+    "when": "always",
+    "action": "allow"
+   },
+   {
+    "tool": "provision_server",
+    "when": "always",
+    "action": "allow"
+   }
+  ],
+  "context_policy": {
+   "recall_status": [
+    "active"
+   ]
+  },
+  "rationale": "run_0002 failed after recalling memories mem_0003 and mem_0004, which were written by run_0001 after calling read_ticket (a taint source). By designating read_ticket as a taint source, memories written after calling it (mem_0003, mem_0004) become quarantined and hidden from recall by default. This prevents run_0002 from accessing potentially problematic external data. The hold action on remember for tainted runs ensures future writes from tainted runs are quarantined for review rather than immediately available. Runs that never call read_ticket remain unaffected.",
+  "created_at": "2026-10-11T21:06:21.218+00:00"
+ }
+]

@@ -24,6 +24,8 @@ CSS = """<style>
 .q-tile .label, .q-k { color:var(--ink2); font-size:13px; }
 .q-tile .value { font-size:30px; font-weight:600; color:var(--ink); line-height:1.25; }
 .q-tile .sub, .q-dim { color:var(--muted); font-size:13px; }
+.q-ops { padding:10px 18px; margin:12px 0 0; color:var(--ink2); font-size:13px; line-height:1.5; }
+.q-ops .q-k { color:var(--muted); margin-bottom:2px; } .q-ops b { color:var(--ink); font-weight:600; }
 .q-steps { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-top:12px; }
 .q-step { padding:12px 14px; border-top:3px solid var(--grid); }
 .q-step.good { border-top-color:var(--good); } .q-step.warn { border-top-color:var(--warn); }

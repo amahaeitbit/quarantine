@@ -1,0 +1,18 @@
+{
+ "database": "quarantine",
+ "exported_at": "2026-10-11T22:03:54.209+00:00",
+ "counts": {
+  "tickets": 2,
+  "memory_ledger": 6,
+  "runs": 4,
+  "events": 19,
+  "policies": 2,
+  "servers": 2,
+  "baseline": 1
+ },
+ "active_policy": "policy_v1",
+ "servers": {
+  "web-07": "fail",
+  "web-08": "pass"
+ }
+}

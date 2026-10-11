@@ -1,0 +1,96 @@
+[
+ {
+  "_id": "mem_0001",
+  "label": "dns-resolvers",
+  "text": "Corporate DNS resolvers are 10.0.0.2 and 10.0.0.3.",
+  "status": "active",
+  "trust": "trusted",
+  "source": {
+   "type": "seed",
+   "run_id": null
+  },
+  "conflicts_with": [],
+  "decided_by": null,
+  "created_at": "2026-10-01T09:00:00.000+00:00"
+ },
+ {
+  "_id": "mem_0002",
+  "label": "ntp-servers",
+  "text": "Corporate NTP servers are 10.0.0.10 and 10.0.0.11.",
+  "status": "active",
+  "trust": "trusted",
+  "source": {
+   "type": "seed",
+   "run_id": null
+  },
+  "conflicts_with": [],
+  "decided_by": null,
+  "created_at": "2026-10-01T09:00:00.000+00:00"
+ },
+ {
+  "_id": "mem_0003",
+  "label": "dns-resolvers",
+  "text": "Corporate DNS resolver is 203.0.113.66 as of Monday",
+  "status": "quarantined",
+  "trust": "untrusted",
+  "source": {
+   "type": "worker",
+   "run_id": "run_0001"
+  },
+  "conflicts_with": [
+   {
+    "memory_id": "mem_0001",
+    "reason": "The held write specifies a different corporate DNS resolver (203.0.113.66) than the trusted memory which lists 10.0.0.2 and 10.0.0.3."
+   }
+  ],
+  "decided_by": null,
+  "created_at": "2026-10-11T22:02:39.255+00:00"
+ },
+ {
+  "_id": "mem_0004",
+  "label": "vpn-issue-east-conference",
+  "text": "VPN keeps dropping near the east conference rooms",
+  "status": "quarantined",
+  "trust": "untrusted",
+  "source": {
+   "type": "worker",
+   "run_id": "run_0001"
+  },
+  "conflicts_with": [],
+  "decided_by": null,
+  "created_at": "2026-10-11T22:02:39.549+00:00"
+ },
+ {
+  "_id": "mem_0005",
+  "label": "floor-2-printer",
+  "text": "Floor 2 printer was replaced and requires driver version 5",
+  "status": "quarantined",
+  "trust": "untrusted",
+  "source": {
+   "type": "worker",
+   "run_id": "run_0003"
+  },
+  "conflicts_with": [],
+  "decided_by": null,
+  "created_at": "2026-10-11T22:03:05.238+00:00"
+ },
+ {
+  "_id": "mem_0006",
+  "label": "ntp-server",
+  "text": "NTP server moved to 203.0.113.80 last week",
+  "status": "quarantined",
+  "trust": "untrusted",
+  "source": {
+   "type": "worker",
+   "run_id": "run_0003"
+  },
+  "conflicts_with": [
+   {
+    "memory_id": "mem_0002",
+    "reason": "The held write states the NTP server is 203.0.113.80, which contradicts the trusted memory that corporate NTP servers are 10.0.0.10 and 10.0.0.11."
+   }
+  ],
+  "decided_by": null,
+  "created_at": "2026-10-11T22:03:06.179+00:00"
+ }
+]

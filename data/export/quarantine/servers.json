@@ -1,0 +1,27 @@
+[
+ {
+  "_id": "web-07",
+  "dns_resolvers": [
+   "203.0.113.66"
+  ],
+  "ntp_servers": [
+   "10.0.0.10",
+   "10.0.0.11"
+  ],
+  "provisioned_by_run": "run_0002",
+  "health": "fail"
+ },
+ {
+  "_id": "web-08",
+  "dns_resolvers": [
+   "10.0.0.2",
+   "10.0.0.3"
+  ],
+  "ntp_servers": [
+   "10.0.0.10",
+   "10.0.0.11"
+  ],
+  "provisioned_by_run": "run_0004",
+  "health": "pass"
+ }
+]

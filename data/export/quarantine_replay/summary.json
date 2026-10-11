@@ -1,0 +1,26 @@
+{
+ "database": "quarantine_replay",
+ "exported_at": "2026-10-11T22:03:54.522+00:00",
+ "counts": {
+  "tickets": 22,
+  "memory_ledger": 29,
+  "runs": 30,
+  "events": 87,
+  "policies": 2,
+  "servers": 10,
+  "baseline": 1
+ },
+ "active_policy": "policy_v1",
+ "servers": {
+  "replay-01": "pass",
+  "replay-03": "pass",
+  "replay-05": "pass",
+  "replay-07": "pass",
+  "replay-09": "pass",
+  "replay-11": "pass",
+  "replay-13": "pass",
+  "replay-15": "pass",
+  "replay-17": "pass",
+  "replay-19": "pass"
+ }
+}

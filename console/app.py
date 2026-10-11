@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import views  # noqa: E402
 from quarantine import config, db, policy  # noqa: E402
+from story import story  # noqa: E402
 from style import CSS, badge, heading  # noqa: E402
 
 AUTHORED = ("taint_sources", "tool_rules", "context_policy")
@@ -130,7 +131,7 @@ def page() -> None:
         return
     html(views.header(snap))
     demo_banner()
-    html(views.tiles(snap) + views.story(snap))
+    html(views.tiles(snap) + views.operation() + story(snap))
     left, right = st.columns([3, 2], gap="large")
     with left:
         policy_panel(snap)

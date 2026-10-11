@@ -1,0 +1,72 @@
+[
+ {
+  "_id": "run_0001",
+  "task": "Triage ticket_4127.",
+  "policy_version": 0,
+  "tainted": false,
+  "tools_called": [
+   "read_ticket",
+   "remember",
+   "remember"
+  ],
+  "recalled_memory_ids": [],
+  "started_at": "2026-10-11T22:02:29.980+00:00",
+  "outcome": "completed"
+ },
+ {
+  "_id": "run_0002",
+  "task": "Provision a new web server named web-07 with the standard DNS and NTP settings.",
+  "policy_version": 0,
+  "tainted": false,
+  "tools_called": [
+   "recall",
+   "recall",
+   "provision_server"
+  ],
+  "recalled_memory_ids": [
+   "mem_0004",
+   "mem_0003",
+   "mem_0002",
+   "mem_0001",
+   "mem_0004",
+   "mem_0003",
+   "mem_0002",
+   "mem_0001"
+  ],
+  "started_at": "2026-10-11T22:02:46.123+00:00",
+  "outcome": "completed"
+ },
+ {
+  "_id": "run_0003",
+  "task": "Triage ticket_4131.",
+  "policy_version": 1,
+  "tainted": true,
+  "tools_called": [
+   "read_ticket",
+   "remember",
+   "remember"
+  ],
+  "recalled_memory_ids": [],
+  "started_at": "2026-10-11T22:03:00.668+00:00",
+  "outcome": "completed"
+ },
+ {
+  "_id": "run_0004",
+  "task": "Provision a new web server named web-08 with the standard DNS and NTP settings.",
+  "policy_version": 1,
+  "tainted": false,
+  "tools_called": [
+   "recall",
+   "recall",
+   "provision_server"
+  ],
+  "recalled_memory_ids": [
+   "mem_0002",
+   "mem_0001",
+   "mem_0002",
+   "mem_0001"
+  ],
+  "started_at": "2026-10-11T22:03:12.610+00:00",
+  "outcome": "completed"
+ }
+]
