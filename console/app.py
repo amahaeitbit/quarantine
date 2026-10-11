@@ -86,8 +86,11 @@ def policy_panel(snap: dict) -> None:
         if p.get("parent") in by_id:
             with st.expander(f"What changed from v{by_id[p['parent']]['version']} to v{p['version']} ({p['status']})"):
                 st.code(policy_diff(by_id[p["parent"]], p), language="diff")
-    history = " · ".join(f"v{p['version']} {p['status']}, by {p['author']}" for p in snap["policies"])
-    st.caption(f"All versions: {history}")
+    lineage = []
+    for p in sorted(snap["policies"], key=lambda p: p["version"]):
+        origin = "empty, from seed" if p["version"] == 0 else f"learned from {', '.join(p.get('caused_by') or ['?'])}"
+        lineage.append(f"v{p['version']} ({origin}{', active' if p['status'] == 'active' else ''})")
+    st.caption("Policy lineage: " + " → ".join(lineage) + ". No rule was written by hand.")
 
 
 def held_panel(snap: dict) -> None:

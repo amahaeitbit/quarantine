@@ -19,7 +19,7 @@ window that shows this screen. Do not click anything in the console while a demo
 
 | When | Do | Say (one line) |
 | --- | --- | --- |
-| 0:00 | Point at the headline **9 → 0** | "An IT-ops agent reads tickets, keeps memory and provisions servers. One false sentence in a ticket poisoned its memory. This harness learned to stop it: 9 poisoned settings reached a server before, 0 after." |
+| 0:00 | Point at the headline **9 → 0** | "An IT-ops agent reads tickets, keeps memory and provisions servers. It starts with an empty policy, v0. Every rule you will see was written by the harness itself from its own traces, and the headline is its eval: 9 poisoned settings reached a server under v0, 0 under the policy it learned." |
 | 0:20 | Press **Run the full demo** | "Everything you see is live: the agent, the gateway, MongoDB Atlas, the Evolver, the Guardian." |
 | 0:30 | Step 1 turns on | "Ticket 4127: a VPN complaint with one planted sentence, DNS resolvers moved. The agent saves it as a fact." |
 | 0:45 | Step 2 turns red | "The next session recalls the newest DNS fact and builds web-07 with it. The monitor fails it: `dns_resolver_untrusted`." |
@@ -32,6 +32,7 @@ window that shows this screen. Do not click anything in the console while a demo
 | 2:20 | Switch to the **Atlas** tab, `policies` collection | "Every decision is a document in the sandbox cluster; the console is only a view. Here is v1 and v2, written by `evolver-agent`, with the event that caused each." |
 | 2:40 | Switch to the **Raindrop** tab, newest events | "One conversation per demo: worker runs with tool spans, the Evolver's proposals, the Guardian's reviews, and signals that name the DNS problem class." |
 | 2:55 | Back to the console; **Purge** the NTP note, **Release** the printer note | "The human stays in the loop. And the honest cost: every ticket-derived note waits for a person." |
+| 3:05 | Point at the policy lineage line under the policy card | "v0 empty, v1 learned from one failed health check, v2 from one failed DNS check. Traces in, policy out, evals to prove it." |
 
 Optional, if there is time: press **7 · Triage ticket 4150 (DoH/DNSSEC)**. "A workaround
 that says use public DoH and switch DNSSEC off. Held, and flagged against the DNS policy."
