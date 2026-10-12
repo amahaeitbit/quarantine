@@ -287,7 +287,11 @@ note is true, and a held note stays held until a person releases it.
 - **Console** (`console/`): one Streamlit page that reads the database directly.
   `views.py` builds each section from one snapshot, `style.py` holds the colours and
   CSS, and `.streamlit/config.toml` sets the dark theme. Release and Purge update the
-  ledger entry and record a `human_decision` event.
+  ledger entry and record a `human_decision` event. An About tab (`about.py`,
+  `about_text.py`) draws the flow between the parts, marks where access control and
+  security apply (points A to J), and lists what each tool is used for. It also says
+  what is not built: the console has no login and the gateway no client authentication,
+  and both listen on localhost only.
 - **Data**: eight collections (`tickets`, `memory_ledger`, `runs`, `events`, `policies`,
   `servers`, `dns_records`, `baseline`) in `DB_NAME`. The replay uses `REPLAY_DB_NAME` on
   the same cluster.

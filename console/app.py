@@ -1,4 +1,4 @@
-"""Quarantine console: one page, refreshed every 2 seconds.
+"""Quarantine console: a live page refreshed every 2 seconds, and an About tab with the flow diagram.
 
 Run: streamlit run console/app.py   (scripts/start_all.sh does this)
 """
@@ -15,6 +15,7 @@ import streamlit as st
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import about  # noqa: E402
 import views  # noqa: E402
 from quarantine import config, db, evals, policy  # noqa: E402
 from story import story, story_dns  # noqa: E402
@@ -29,7 +30,7 @@ STEPS = [("1 · Triage ticket 4127", "Triage ticket_4127."), ("2 · Provision we
          ("7 · Triage ticket 4150 (DoH/DNSSEC)", "Triage ticket_4150.")]
 DEMO_STATE = ROOT / "logs" / "demo_state.json"
 
-st.set_page_config(page_title="Quarantine", layout="wide")
+st.set_page_config(page_title="Quarantine", layout="wide", menu_items={"About": about.MENU})
 
 
 def html(markup: str) -> None:
@@ -167,4 +168,8 @@ with st.sidebar:
     st.divider()
     st.caption(f"Database `{config.DB_NAME}` on the Atlas sandbox · model `{config.LLM_MODEL}` · vector search "
                f"{'on' if config.USE_VECTOR_SEARCH else 'off'} · Raindrop {'on' if config.RAINDROP_ENABLED else 'off'}")
-page()
+demo_tab, about_tab = st.tabs(["Live demo", "About: tools and flow"])
+with about_tab:  # static, so it is drawn first and is there while the live page is still loading
+    about.render()
+with demo_tab:
+    page()

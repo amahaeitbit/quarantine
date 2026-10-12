@@ -51,7 +51,10 @@ CSS = """<style>
 .q-feed { max-height:430px; overflow:auto; padding:4px 18px; }
 .q-ev { display:grid; grid-template-columns:70px 1fr auto; gap:12px; align-items:center; padding:7px 0;
   border-top:1px solid var(--grid); font-size:13.5px; color:var(--ink); }
-.q-ev:first-child, .q-rule:first-of-type { border-top:none; }
+.q-ev:first-child, .q-rule:first-of-type, .q-arow:first-child { border-top:none; }
+.q-arow { display:grid; grid-template-columns:140px 300px 1fr; gap:14px; padding:8px 0; border-top:1px solid var(--grid);
+  font-size:13.5px; color:var(--ink2); }
+.q-arow b { color:var(--ink); font-weight:600; } .q-arow .tool { color:var(--ink); }
 .q-warnbox { border:1px solid rgba(208,59,59,.55); background:rgba(208,59,59,.10); border-radius:8px; padding:8px 10px;
   color:var(--ink); font-size:13px; margin-top:8px; }
 </style>"""
